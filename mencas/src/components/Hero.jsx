@@ -3,10 +3,10 @@ import { DocumentTextIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import { cn } from "../lib/utils";
 import seguroAuto from "../assets/auto.png";
 import seguroMedico from "../assets/medico.png";
-import seguroPropiedad from "../assets/casa.png";
+import seguroPropiedad from "../assets/SeguroPropiedadMencas.png";
 import seguroVida from "../assets/vida.png";
 import seguroViaje from "../assets/viaje.png";
-import seguroMencasTeAsiste from "../assets/asistencia3.png";
+import seguroMencasTeAsiste from "../assets/asistencia.png";
 const cards = [
   {
     title: "Seguro Vehículo",
@@ -18,7 +18,7 @@ const cards = [
     description: "Tu salud es prioridad. Cobertura médica amplia.",
     image: seguroMedico,
   },
-   {
+  {
     title: "Seguro de Propiedad",
     description: "Protege tu hogar y pertenencias valiosas.",
     image: seguroPropiedad,
@@ -28,12 +28,12 @@ const cards = [
     description: "Tranquilidad para ti y tus seres queridos.",
     image: seguroVida,
   },
-    {
+  {
     title: "Seguro de Viaje",
     description: "Viaja con confianza y protección en todo momento.",
     image: seguroViaje,
   },
-      {
+  {
     title: "Seguro MencasTeAsiste",
     description: "Asistencia 24/7 en carretera y emergencias.",
     image: seguroMencasTeAsiste,
@@ -42,12 +42,16 @@ const cards = [
 
 const Hero = () => {
   return (
-    <section id="inicio" className="relative w-full min-h-[90vh] bg-white text-gray-800 flex items-center justify-center px-6 py-20">
+    <section
+      id="inicio"
+      className="relative w-full min-h-[90vh] bg-white text-gray-800 flex items-center justify-center px-6 py-20"
+    >
       <div className="grid md:grid-cols-2 gap-10 items-center max-w-7xl mx-auto w-full">
         {/* Texto principal */}
         <div className="space-y-6 text-center md:text-left">
           <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-            Tu protección empieza <span className="text-[rgb(34,128,62)]">hoy</span>
+            Tu protección empieza{" "}
+            <span className="text-[rgb(34,128,62)]">hoy</span>
           </h1>
           <p className="text-lg md:text-xl text-gray-600">
             Cotiza tu seguro de forma rápida, segura y sin complicaciones.
@@ -75,14 +79,20 @@ const Hero = () => {
               key={i}
               style={{ backgroundImage: `url(${card.image})` }}
               className={cn(
-                "group cursor-pointer overflow-hidden relative h-60 shadow-xl border border-neutral-200 bg-cover bg-center bg-no-repeat",
+                "group cursor-pointer overflow-hidden relative h-60 shadow-xl border border-neutral-300 bg-cover bg-center bg-no-repeat",
                 "hover:after:content-[''] hover:after:absolute hover:after:inset-0 hover:after:bg-black/50",
                 "transition-all duration-500 flex flex-col justify-end p-4"
               )}
             >
-              <div className="z-10 relative text-white">
-                <h2 className="font-bold text-xl">{card.title}</h2>
-                <p className="text-sm">{card.description}</p>
+              <div className="relative group cursor-pointer overflow-hidden h-60 shadow-xl border border-neutral-200 bg-cover bg-center bg-no-repeat">
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/50 transition"></div>
+
+                {/* Texto */}
+                <div className="relative z-10 text-white p-4">
+                  <h2 className="font-bold text-xl">{card.title}</h2>
+                  <p className="text-sm">{card.description}</p>
+                </div>
               </div>
             </div>
           ))}
