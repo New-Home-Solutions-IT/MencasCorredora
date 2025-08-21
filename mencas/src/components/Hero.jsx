@@ -7,6 +7,7 @@ import seguroPropiedad from "../assets/SeguroPropiedadMencas.png";
 import seguroVida from "../assets/vida.png";
 import seguroViaje from "../assets/viaje.png";
 import seguroMencasTeAsiste from "../assets/asistencia.png";
+import Alliances from "../components/Alliances"; 
 const cards = [
   {
     title: "Seguro Vehículo",
@@ -34,7 +35,7 @@ const cards = [
     image: seguroViaje,
   },
   {
-    title: "Seguro MencasTeAsiste",
+    title: "Seguro Asistencia",
     description: "Asistencia 24/7 en carretera y emergencias.",
     image: seguroMencasTeAsiste,
   },
@@ -64,10 +65,10 @@ const Hero = () => {
               </span>
             </button>
             <button className="group border border-[rgb(34,128,62)] text-[rgb(34,128,62)] hover:bg-[rgb(34,128,62)] hover:text-white px-8 py-3 rounded-md transition duration-200 shadow-md hover:scale-105">
-              <span className="inline-flex items-center gap-2">
+              <a href="#servicios" className="inline-flex items-center gap-2">
                 <ShieldCheckIcon className="w-5 h-5" />
                 Ver servicios
-              </span>
+              </a>
             </button>
           </div>
         </div>
@@ -98,6 +99,7 @@ const Hero = () => {
           ))}
         </div>
       </div>
+      
     </section>
   );
 };

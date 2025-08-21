@@ -1,82 +1,95 @@
-import React, { useRef, useState } from "react";
+// src/components/ui/SpotlightCard.jsx
+import React, { useRef } from "react";
 import clsx from "clsx";
 import { twMerge } from "tailwind-merge";
-
-export const cn = (...i) => twMerge(clsx(i));
+const cn = (...i) => twMerge(clsx(i));
 
 export default function SpotlightCard({
   image,
   title,
   description,
-  badge,            // opcional: "Compra en línea", etc.
-  onClick,          // opcional
+  badge,
+  primaryAction,   // { label: "Cotizar", onClick: fn }
+  secondaryAction, // { label: "Beneficios", onClick: fn }
   className,
 }) {
   const ref = useRef(null);
-  const [pos, setPos] = useState({ x: 50, y: 50 }); // porcentajes
+  let raf = null;
 
   function handleMove(e) {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    const x = ((e.clientX - r.left) / r.width) * 100;
-    const y = ((e.clientY - r.top) / r.height) * 100;
-    setPos({ x, y });
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      el.style.setProperty("--x", `${x}px`);
+      el.style.setProperty("--y", `${y}px`);
+    });
   }
 
   return (
     <article
       ref={ref}
       onMouseMove={handleMove}
-      onClick={onClick}
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-2xl",
-        "border border-gray-200 bg-white shadow-sm transition",
-        "hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-200",
+        "group relative overflow-hidden rounded-2xl border border-gray-200 shadow-sm",
+        "transition-transform duration-300 will-change-transform hover:scale-[1.02]",
+        "[--x:50%] [--y:50%]",
         className
       )}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : -1}
-      onKeyDown={(e) => onClick && (e.key === "Enter" || e.key === " ") && onClick()}
     >
-      {/* Spotlight (ligero y elegante) */}
+      {/* Imagen */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${image})` }}
+        aria-hidden
+      />
+
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/45 to-transparent" />
+
+      {/* Spotlight */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
         style={{
-          background: `radial-gradient(280px circle at ${pos.x}% ${pos.y}%, rgba(99,102,241,0.15), transparent 40%)`,
+          background:
+            "radial-gradient(240px circle at var(--x) var(--y), rgba(255,255,255,0.18), transparent 45%)",
         }}
       />
 
-      {/* Imagen top */}
-      <div className="relative">
-        <img
-          src={image}
-          alt={title}
-          className="h-40 w-full object-cover"
-          draggable="false"
-        />
-        {badge ? (
-          <span className="absolute top-3 right-3 rounded-full bg-pink-600 text-white text-xs font-semibold px-2 py-1 shadow-md">
+      {/* Contenido */}
+      <div className="relative z-10 p-4 text-white h-full flex flex-col justify-end drop-shadow-md">
+        {badge && (
+          <span className="absolute top-3 left-3 rounded-full bg-[rgb(34,128,62)] text-white text-xs font-semibold px-2 py-1 shadow">
             {badge}
           </span>
-        ) : null}
-      </div>
+        )}
+        <div className="text-sm text-white/90">Seguro de</div>
+        <h3 className="text-xl font-bold">{title}</h3>
+        <p className="text-sm text-white/90 line-clamp-2">{description}</p>
 
-      {/* Contenido */}
-      <div className="flex flex-col gap-2 p-4">
-        <div className="text-sm text-gray-500">Seguro de</div>
-        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-600 line-clamp-2">{description}</p>
-
-        <div className="mt-3">
-          <button
-            className={cn(
-              "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold",
-              "bg-cyan-700 text-white hover:bg-cyan-800 transition"
-            )}
-          >
-            Cotizar
-          </button>
+        {/* Botones */}
+        <div className="mt-3 flex gap-2">
+          {primaryAction && (
+            <button
+              onClick={primaryAction.onClick}
+              className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold bg-[rgb(34,128,62)] hover:bg-[rgb(30,110,55)] transition"
+            >
+              {primaryAction.label}
+            </button>
+          )}
+          {secondaryAction && (
+            <button
+              onClick={secondaryAction.onClick}
+              className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold border border-white/60 text-white hover:bg-white/10 transition"
+            >
+              {secondaryAction.label}
+            </button>
+          )}
         </div>
       </div>
     </article>
