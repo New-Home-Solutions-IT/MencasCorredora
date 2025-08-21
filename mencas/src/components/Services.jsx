@@ -39,7 +39,7 @@ const cards = [
     badge: "Compra en línea",
   },
   {
-    title: "Asegurame T-Asiste",
+    title: "Seguro de Asistencia",
     description: "Asistencia, protección y salud en todo momento.",
     image: seguroMencasTeAsiste,
     badge: "Compra en línea",

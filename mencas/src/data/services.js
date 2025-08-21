@@ -12,5 +12,5 @@ export const services = [
   { title: "Propiedad", description: "Protege tu hogar y pertenencias valiosas.", image: seguroPropiedad },
   { title: "Vida", description: "Asegura el futuro de tus seres queridos con tranquilidad.", image: seguroVida },
   { title: "Viaje", description: "Disfruta sin estrés tus viajes, siempre protegido.", image: seguroViaje, badge: "Compra en línea" },
-  { title: "Asegurame T-Asiste", description: "Asistencia, protección y salud en todo momento.", image: seguroMencasTeAsiste, badge: "Compra en línea" },
+  { title: "Mencas T-Asiste", description: "Asistencia, protección y salud en todo momento.", image: seguroMencasTeAsiste, badge: "Compra en línea" },
 ];

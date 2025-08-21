@@ -10,7 +10,7 @@ import seguroMencasTeAsiste from "../assets/asistencia.png";
 import Alliances from "../components/Alliances"; 
 const cards = [
   {
-    title: "Seguro Vehículo",
+    title: "Seguro de Vehículo",
     description: "Protege tu auto ante cualquier eventualidad.",
     image: seguroAuto,
   },
