@@ -45,7 +45,7 @@ const Hero = () => {
   return (
     <section
       id="inicio"
-      className="relative w-full min-h-[90vh] bg-white text-gray-800 flex items-center justify-center px-6 py-20"
+      className="scroll-mt-24 relative w-full min-h-[90vh] bg-white text-gray-800 flex items-center justify-center px-6 py-20"
     >
       <div className="grid md:grid-cols-2 gap-10 items-center max-w-7xl mx-auto w-full">
         {/* Texto principal */}

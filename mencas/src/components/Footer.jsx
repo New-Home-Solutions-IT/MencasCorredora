@@ -54,14 +54,14 @@ export default function Footer() {
           <h3 className="text-md font-semibold mb-2 text-[rgb(34,128,62)]">
             Contáctanos
           </h3>
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2 text-xs">
             <li className="flex items-center gap-2">
               <Phone size={16} /> +504 3261-4605
             </li>
             <li className="flex items-center gap-2">
               <Mail size={16} /> gerencia@mencasdn.com
             </li>
-            <li className="flex items-center gap-2">
+             <li className="flex items-center gap-2">
               <Mail size={16} /> mencascorredoresdn@gmail.com
             </li>
           </ul>
@@ -73,10 +73,18 @@ export default function Footer() {
             Síguenos
           </h3>
           <div className="flex gap-4">
-            <a href="https://www.facebook.com/profile.php?id=61567184361657&mibextid=wwXIfr&rdid=z63nlWJJg5MQuAWW&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F1EB2sRaZBy%2F%3Fmibextid%3DwwXIfr#" target="_blank" rel="noreferrer">
+            <a
+              href="https://www.facebook.com/profile.php?id=61567184361657&mibextid=wwXIfr&rdid=z63nlWJJg5MQuAWW&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F1EB2sRaZBy%2F%3Fmibextid%3DwwXIfr#"
+              target="_blank"
+              rel="noreferrer"
+            >
               <FaFacebook className="w-6 h-6 hover:text-blue-600 transition" />
             </a>
-            <a href="https://www.instagram.com/mencascorredores/?igsh=MXVsODkzN3V4N2V1cA%3D%3D#" target="_blank" rel="noreferrer">
+            <a
+              href="https://www.instagram.com/mencascorredores/?igsh=MXVsODkzN3V4N2V1cA%3D%3D#"
+              target="_blank"
+              rel="noreferrer"
+            >
               <FaInstagram className="w-6 h-6 hover:text-pink-500 transition" />
             </a>
           </div>
