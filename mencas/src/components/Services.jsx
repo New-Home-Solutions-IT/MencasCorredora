@@ -35,13 +35,13 @@ const cards = [
     description:
       "Asistencia médica y cobertura ante imprevistos durante viajes nacionales o internacionales.",
     image: seguroViaje,
-    badge: "Compra en línea",
+    // badge: "Compra en línea",
   },
   {
     title: "Seguro de Asistencia",
     description: "Asistencia, protección y salud en todo momento.",
     image: seguroMencasTeAsiste,
-    badge: "Compra en línea",
+    // badge: "Compra en línea",
   },
 ];
 
