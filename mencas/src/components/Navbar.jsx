@@ -1,4 +1,3 @@
-// src/components/Navbar.jsx
 import { useState, useCallback } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
@@ -39,7 +38,7 @@ export default function Navbar() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
           <img src={logo} alt="Mencas Logo" className="h-10 w-auto" />
-          <span className="font-bold text-lg text-green-700">Mencas Corredores</span>
+          <span className="font-bold text-lg text-green-700">MENCAS CORREDORES</span>
         </Link>
 
         {/* Menú desktop */}

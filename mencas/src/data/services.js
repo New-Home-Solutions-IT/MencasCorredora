@@ -1,4 +1,3 @@
-// src/data/services.js
 import seguroAuto from "../assets/auto.png";
 import seguroMedico from "../assets/medico.png";
 import seguroPropiedad from "../assets/SeguroPropiedadMencas.png";

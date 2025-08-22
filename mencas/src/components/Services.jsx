@@ -1,4 +1,3 @@
-// src/components/Services.jsx
 import React from "react";
 import SpotlightCard from "../../src/components/ui/SpotlightCard";
 

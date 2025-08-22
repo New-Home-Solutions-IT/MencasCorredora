@@ -12,6 +12,7 @@ import Alliances from "./components/Alliances";
 import Services from "./components/Services";
 import About from "./components/About";  
 import Contact from "./components/Contact";
+import Login from "./components/Login";
 
 // ---- Páginas compuestas ----
 function HomePage() {
@@ -43,6 +44,7 @@ export default function App() {
         {/* Home */}
         <Route path="/" element={<HomePage />} />
         <Route path="/nosotros" element={<About />} />
+         <Route path="/login" element={<Login />} />
         <Route path="/servicios" element={<Services />} />
         <Route path="/contacto" element={<Contact />} />
 
