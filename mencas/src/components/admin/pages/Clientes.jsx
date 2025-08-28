@@ -380,7 +380,7 @@ export default function Clientes() {
                 setQ(e.target.value);
                 resetToFirstPage();
               }}
-              placeholder="Buscar por nombre, email, teléfono, ID, ocupación, dirección"
+              placeholder="Buscar por nombre, email, teléfono"
               className="w-full rounded-lg border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgba(34,128,62,0.25)]"
             />
           </div>

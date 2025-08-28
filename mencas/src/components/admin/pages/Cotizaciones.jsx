@@ -98,7 +98,7 @@ export default function Cotizaciones() {
     setPage(1);
   }
 
-  // Subida de PDF (no abre, solo guarda en estado)
+  // Subida de PDF
   function handleUploadPdf(rowId, file) {
     if (!file) return;
     setData((prev) =>
@@ -121,10 +121,7 @@ export default function Cotizaciones() {
         ? `Enviar correo a ${row.email}`
         : `Realizar llamada a ${row.telefono}`;
     alert(`Cotización ${row.id}: ${mensaje}\nPDF adjunto: ${row.pdfName || "archivo.pdf"}`);
-    // Aquí conectas con tu backend para enviar realmente según el método
-    // - WhatsApp: integra tu backend/CRM o genera deeplink con un mensaje
-    // - Email: endpoint que envíe con adjunto
-    // - Llamada: integra VOIP o crea tarea/recordatorio
+    // backend para enviar realmente según el método
   }
 
   return (
@@ -152,7 +149,7 @@ export default function Cotizaciones() {
                 setQ(e.target.value);
                 resetToFirstPage();
               }}
-              placeholder="Buscar por No., cliente, teléfono o email"
+              placeholder="Buscar por Cliente, teléfono o email"
               className="w-full rounded-lg border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgba(34,128,62,0.25)]"
             />
           </div>

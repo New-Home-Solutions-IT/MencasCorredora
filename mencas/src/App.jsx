@@ -13,7 +13,7 @@ import Services from "./components/Services";
 import About from "./components/About";  
 import Contact from "./components/Contact";
 import Login from "./components/Login";
-// import SeguroDetalle from "./components/seguros/SeguroDetalle"; 
+import SeguroDetalle from "./components/seguros/SeguroDetalle"; 
 
 // Admin
 import AdminShell from "./components/admin/pages/AdminShell.jsx";
@@ -77,7 +77,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/servicios" element={<Services />} />
         <Route path="/contacto" element={<Contact />} />
-        {/* <Route path="/seguros/:slug" element={<SeguroDetalle />} /> */}
+        <Route path="/seguros/:slug" element={<SeguroDetalle />} />
       </Route>
 
       {/* Rutas del portal admin: SIN header, con su propio footer dentro del AdminShell */}
