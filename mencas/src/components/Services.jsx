@@ -1,12 +1,32 @@
+// Services.jsx
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import SpotlightCard from "../../src/components/ui/SpotlightCard";
-
 import seguroAuto from "../assets/auto.png";
 import seguroMedico from "../assets/medico.png";
 import seguroPropiedad from "../assets/SeguroPropiedadMencas.png";
 import seguroVida from "../assets/vida.png";
 import seguroViaje from "../assets/viaje.png";
 import seguroMencasTeAsiste from "../assets/asistencia.png";
+
+const SLUGS = {
+  "Vehículo": "vehiculo",
+  "Médico": "medico",
+  "Propiedad": "propiedad",
+  "Vida": "vida",
+  "Viaje": "viaje",
+  "Seguro de Repatriación": "asistencia",
+};
+
+// NUEVO: rutas dedicadas para “Beneficios”
+const BENEFICIOS_ROUTES = {
+  "Vehículo": "/beneficios/vehiculo",
+  "Médico": "/beneficios/medico",
+  "Propiedad": "/beneficios/propiedad",
+  "Vida": "/beneficios/vida",
+  "Viaje": "/beneficios/viaje",
+  "Seguro de Repatriación": "/beneficios/repatriacion",
+};
 
 const cards = [
   {
@@ -35,22 +55,38 @@ const cards = [
     description:
       "Asistencia médica y cobertura ante imprevistos durante viajes nacionales o internacionales.",
     image: seguroViaje,
-    // badge: "Compra en línea",
   },
   {
-    title: "Seguro de Asistencia",
-    description: "Asistencia, protección y salud en todo momento.",
+    title: "Seguro de Repatriación",
+    description: "Cerca de los tuyos, sin importar la distancia",
     image: seguroMencasTeAsiste,
-    // badge: "Compra en línea",
   },
 ];
 
 export default function Services() {
+  const navigate = useNavigate();
+
+  const goToCotizar = (title) => {
+    const slug = SLUGS[title];
+    if (!slug) return;
+    navigate(`/seguros/${slug}`); // abre el wizard
+  };
+
+  // ACTUALIZADO: beneficios van a su propia ruta por seguro
+  const goToBeneficios = (title) => {
+    const path = BENEFICIOS_ROUTES[title];
+    if (!path) return;
+    navigate(path);
+  };
+
+  // ACTUALIZADO: click en tarjeta ⇒ beneficios
+  const onCardClick = (title) => goToBeneficios(title);
+
   return (
     <section id="servicios" className="w-full py-16 bg-gray-50 text-gray-800">
       <div className="mx-auto max-w-7xl px-6">
         <header className="mb-10 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold  text-gray-800 ">
+          <h2 className="text-4xl md:text-5xl font-bold text-gray-800">
             Nuestros servicios
           </h2>
           <p className="mt-2 text-zinc-400">
@@ -58,21 +94,6 @@ export default function Services() {
           </p>
         </header>
 
-        {/* <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {cards.map((c, i) => (
-            <SpotlightCard
-              key={i}
-              image={c.image}
-              title={c.title}
-              description={c.description}
-              content={c.content}
-              badge={c.badge}
-              ctaText="Cotizar"
-              onClick={() => console.log("Ver/Cotizar:", c.title)} 
-              className="h-60"
-            />
-          ))}
-        </div> */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {cards.map((c, i) => (
             <SpotlightCard
@@ -82,13 +103,14 @@ export default function Services() {
               description={c.description}
               badge={c.badge}
               className="h-60"
+              onClick={() => onCardClick(c.title)} // tarjeta ⇒ beneficios
               primaryAction={{
                 label: "Cotizar",
-                onClick: () => console.log("Cotizar:", c.title),
+                onClick: () => goToCotizar(c.title),
               }}
               secondaryAction={{
                 label: "Beneficios",
-                onClick: () => console.log("Beneficios:", c.title),
+                onClick: () => goToBeneficios(c.title),
               }}
             />
           ))}

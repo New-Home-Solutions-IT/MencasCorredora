@@ -8,14 +8,46 @@ import seguroPropiedad from "../assets/SeguroPropiedadMencas.png";
 import seguroVida from "../assets/vida.png";
 import seguroViaje from "../assets/viaje.png";
 import seguroMencasTeAsiste from "../assets/asistencia.png";
+import logo from "../assets/logoheroMencas.png";
+import { motion } from "framer-motion";
 
 const cards = [
-  { title: "Seguro de Vehículo", slug: "vehiculo", description: "Protege tu auto ante cualquier eventualidad.", image: seguroAuto },
-  { title: "Seguro Médico", slug: "medico", description: "Tu salud es prioridad. Cobertura médica amplia.", image: seguroMedico },
-  { title: "Seguro de Propiedad", slug: "propiedad", description: "Protege tu hogar y pertenencias valiosas.", image: seguroPropiedad },
-  { title: "Seguro de Vida", slug: "vida", description: "Tranquilidad para ti y tus seres queridos.", image: seguroVida },
-  { title: "Seguro de Viaje", slug: "viaje", description: "Viaja con confianza y protección en todo momento.", image: seguroViaje },
-  { title: "Seguro Asistencia", slug: "asistencia", description: "Asistencia 24/7 en carretera y emergencias.", image: seguroMencasTeAsiste },
+  {
+    title: "Seguro de Vehículo",
+    slug: "vehiculo",
+    description: "Protege tu auto ante cualquier eventualidad.",
+    image: seguroAuto,
+  },
+  {
+    title: "Seguro Médico",
+    slug: "medico",
+    description: "Tu salud es prioridad. Cobertura médica amplia.",
+    image: seguroMedico,
+  },
+  {
+    title: "Seguro de Propiedad",
+    slug: "propiedad",
+    description: "Protege tu hogar y pertenencias valiosas.",
+    image: seguroPropiedad,
+  },
+  {
+    title: "Seguro de Vida",
+    slug: "vida",
+    description: "Tranquilidad para ti y tus seres queridos.",
+    image: seguroVida,
+  },
+  {
+    title: "Seguro de Viaje",
+    slug: "viaje",
+    description: "Viaja con confianza y protección en todo momento.",
+    image: seguroViaje,
+  },
+  {
+    title: "Seguro Repatriación",
+    slug: "asistencia",
+    description: "Asistencia 24/7 en carretera y emergencias.",
+    image: seguroMencasTeAsiste,
+  },
 ];
 
 const Hero = () => {
@@ -26,21 +58,30 @@ const Hero = () => {
       id="inicio"
       className="scroll-mt-24 relative w-full min-h-[90vh] bg-white text-gray-800 flex items-center justify-center px-6 py-20"
     >
+      <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+          >
       <div className="grid md:grid-cols-2 gap-10 items-center max-w-7xl mx-auto w-full">
         {/* Texto principal */}
-        <div className="space-y-6 text-center md:text-left">
-          <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-            Tu protección empieza <span className="text-[rgb(34,128,62)]">hoy</span>
-          </h1>
+        <div className="space-y-4 text-center md:text-left">
+            <div className="flex justify-center md:justify-center">
+            <img src={logo} alt="Mencas Logo" className="h-60 w-auto" />
+          </div>
+            <h1 className="text-4xl md:text-6xl font-bold leading-tight">
+              Tu protección empieza{" "}
+              <span className="text-[rgb(34,128,62)]">hoy</span>
+            </h1>
           <p className="text-lg md:text-xl text-gray-600">
             Cotiza tu seguro de forma rápida, segura y sin complicaciones.
           </p>
           <div className="flex justify-center md:justify-start gap-4 flex-wrap">
             <button className="group relative bg-[rgb(34,128,62)] hover:bg-[rgb(30,110,55)] text-white px-8 py-3 rounded-md transition duration-200 shadow-md hover:scale-105">
-              <span className="inline-flex items-center gap-2">
-                <DocumentTextIcon className="w-5 h-5" />
+              <a href="#contact" className="inline-flex items-center gap-2">
+                <DocumentTextIcon className="w-5 h-5"  />
                 Cotiza ahora
-              </span>
+              </a>
             </button>
             <button className="group border border-[rgb(34,128,62)] text-[rgb(34,128,62)] hover:bg-[rgb(34,128,62)] hover:text-white px-8 py-3 rounded-md transition duration-200 shadow-md hover:scale-105">
               <a href="#servicios" className="inline-flex items-center gap-2">
@@ -73,6 +114,7 @@ const Hero = () => {
           ))}
         </div>
       </div>
+      </motion.div>
     </section>
   );
 };

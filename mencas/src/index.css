@@ -3,6 +3,6 @@
 @tailwind utilities;
 
 /* volver arriba efecto */
-html {
+html, body {
   scroll-behavior: smooth;
 }

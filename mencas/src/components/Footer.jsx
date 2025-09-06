@@ -55,7 +55,7 @@ export default function Footer() {
               </button>
             </li>
             <li>
-              <button onClick={() => goToSection("cotizame")} className="hover:underline">
+              <button onClick={() => goToSection("servicios")} className="hover:underline">
                 Cotízame
               </button>
             </li>
@@ -71,6 +71,7 @@ export default function Footer() {
             </li>
           </ul>
         </div>
+
         <div>
           <h3 className="text-md font-semibold mb-2 text-[rgb(34,128,62)]">
             Contáctanos
@@ -78,7 +79,7 @@ export default function Footer() {
           <ul className="space-y-2 text-xs">
             <li className="flex items-center gap-2">
               <Phone size={16} />
-              <a href="tel:+50432614605" className="hover:underline">+504 3261-4605</a>
+              <a href="tel:32614605" className="hover:underline">+504 3261-4605</a>
             </li>
             <li className="flex items-center gap-2">
               <Mail size={16} />
@@ -117,8 +118,22 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="text-center text-xs mt-10 text-gray-500">
-        &copy; {new Date().getFullYear()} Mencas Corredores. Todos los derechos reservados.
+      {/* Sección inferior con "Desarrollado por" */}
+      <div className="mt-10 border-t border-gray-300 pt-4">
+        <div className="max-w-7xl mx-auto px-1 text-center text-xs text-gray-600 space-y-1">
+          <div>&copy; {new Date().getFullYear()} Mencas Corredores. Todos los derechos reservados.</div>
+          <div>
+            Desarrollado por{" "}
+            <a
+              href="https://newhomesolutionshn.com/"
+              target="_blank"
+              rel="noopener noreferrer author"
+              className="font-medium text-[rgb(34,128,62)] hover:underline"
+            >
+              newHomeSolutions
+            </a>
+          </div>
+        </div>
       </div>
     </footer>
   );

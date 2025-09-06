@@ -1,10 +1,26 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import logo from "/mencasIcono.png";
+
 const SIDE_IMAGE = "/historiaMencas.png";
 const BRAND = "rgb(34,128,62)";
+const API_BASE = import.meta.env.VITE_API_URL;
+
+// Utilidad: decodifica un JWT (solo payload) para extraer exp, email.
+function decodeJwtPayload(token) {
+  try {
+    const [, payload] = token.split(".");
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch {
+    return null;
+  }
+}
 
 export default function Login() {
+  const navigate = useNavigate();
+
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", remember: true });
@@ -31,10 +47,87 @@ export default function Login() {
 
     try {
       setLoading(true);
-      await new Promise((r) => setTimeout(r, 1200));
-      alert("Login ok (demo)");
-    } catch {
-      setErrors({ form: "No pudimos iniciar sesión. Intenta de nuevo." });
+
+      const res = await fetch(`${API_BASE}/login/cognitoLogin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user: form.email,
+          password: form.password,
+        }),
+      });
+
+      const text = await res.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+
+      // Si la respuesta fue error, muestra el mensaje del backend si existe
+      if (!res.ok) {
+        const backendMsg = data?.message || data?.error;
+        throw new Error(
+          backendMsg || "No pudimos iniciar sesión. Verifica tus credenciales."
+        );
+      }
+
+      // ---------- 🔐 Primer inicio de sesión ----------
+      // Ajusta estas condiciones a la bandera exacta de tu backend
+      const isFirstLogin =
+        data?.mustChangePassword === true ||
+        data?.requiresPasswordChange === true ||
+        data?.challenge === "NEW_PASSWORD_REQUIRED";
+
+      if (data?.passwordReset === true) {
+        navigate("/update-password", {
+          replace: true,
+          state: { email: form.email },
+        });
+        return;
+      }
+      if (isFirstLogin) {
+        // Redirige a /update-password y pasa el email
+        navigate("/update-password", {
+          replace: true,
+          state: { email: form.email },
+        });
+        return; // no sigas con el flujo normal
+      }
+
+      // ---------- ✅ Flujo normal: guardar tokens y entrar ----------
+      const { AccessToken, IdToken, RefreshToken } = data;
+
+      if (!AccessToken || !IdToken) {
+        const backendMsg = data?.message || data?.error;
+        throw new Error(
+          backendMsg || "Respuesta inválida del servidor (faltan tokens)."
+        );
+      }
+
+      // Decide dónde guardar según "Recuérdame"
+      const storage = form.remember ? localStorage : sessionStorage;
+
+      storage.setItem("accessToken", AccessToken);
+      storage.setItem("idToken", IdToken);
+      if (RefreshToken) storage.setItem("refreshToken", RefreshToken);
+      storage.setItem("rememberMe", form.remember ? "1" : "0");
+
+      // Metadatos útiles
+      const payload = decodeJwtPayload(IdToken);
+      if (payload?.exp) storage.setItem("tokenExp", String(payload.exp));
+      if (payload?.email) storage.setItem("userEmail", payload.email);
+
+      // Redirige al admin
+      navigate("/admin", { replace: true });
+    } catch (error) {
+      console.error(error);
+      setErrors({
+        form:
+          error?.message ||
+          "No pudimos iniciar sesión. Verifica tus credenciales.",
+      });
     } finally {
       setLoading(false);
     }
@@ -73,6 +166,7 @@ export default function Login() {
             )}
 
             <form onSubmit={onSubmit} className="space-y-4">
+              {/* email */}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium">
                   Correo
@@ -124,6 +218,7 @@ export default function Login() {
                 )}
               </div>
 
+              {/* recordar */}
               <div className="flex items-center justify-between">
                 <label className="inline-flex items-center gap-2 text-sm">
                   <input
@@ -136,7 +231,12 @@ export default function Login() {
                   Recuérdame
                 </label>
                 <a
-                  href="#"
+                  type="button"
+                  onClick={() =>
+                    navigate("/update-password", {
+                      state: { email: form.email },
+                    })
+                  }
                   className="text-sm font-medium hover:opacity-80"
                   style={{ color: BRAND }}
                 >
@@ -161,11 +261,6 @@ export default function Login() {
                 )}
               </button>
             </form>
-            <div className="my-6 flex items-center gap-4 text-xs text-gray-400">
-              <div className="h-px flex-1 bg-gray-200" />
-              
-              <div className="h-px flex-1 bg-gray-200" />
-            </div>
           </div>
         </div>
 

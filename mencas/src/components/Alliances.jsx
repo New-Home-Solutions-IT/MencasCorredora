@@ -9,13 +9,13 @@ import seguroCrefisa from "../assets/alliances/SeguroCrefisa.png";
 import segurolafise from "../assets/alliances/SegurosLafise.png";
 
 const alliances = [
-  { name: "Davivienda Seguros", url: "https://www.davivienda.com.hn/seguros", logo: davivienda },
-  { name: "Grupo EPS", url: "https://grupoeps.hn/", logo: grupoEPS },
-  { name: "Mawdy", url: "https://www.mawdy.com/globales/honduras/", logo: mawdy },
-  { name: "Pan American Life", url: "https://palig.com/es/hn/home", logo: PanAmericanLife },
-  { name: "Seguros Continental", url: "https://segcon.hn/", logo: segurosContinental },
-  { name: "Seguros Crefisa", url: "https://crefisa.com/", logo: seguroCrefisa },
-  { name: "Seguros Lafise", url: "https://www.lafise.com/slh/", logo: segurolafise },
+  { name: "Davivienda Seguros", url: "", logo: davivienda },
+  { name: "Grupo EPS", url: "", logo: grupoEPS },
+  { name: "Mawdy", url: "", logo: mawdy },
+  { name: "Pan American Life", url: "", logo: PanAmericanLife },
+  { name: "Seguros Continental", url: "", logo: segurosContinental },
+  { name: "Seguros Crefisa", url: "", logo: seguroCrefisa },
+  { name: "Seguros Lafise", url: "", logo: segurolafise },
 ];
 
 export default function Alliances() {

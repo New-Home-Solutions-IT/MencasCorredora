@@ -1,4 +1,3 @@
-// src/components/admin/pages/AdminShell.jsx
 import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar, SidebarBody } from "../../ui/Sidebar";
@@ -6,8 +5,6 @@ import {
   IconLayoutDashboard,
   IconUsersGroup,
   IconFileDollar,
-  IconUserCog,
-  IconSettings,
   IconLogout,
   IconMenu2,
   IconX,
@@ -15,20 +12,71 @@ import {
 import { cn } from "../../../lib/utils";
 import logoIcon from "../../../assets/mencasIcono.png";
 
+function getStorage() {
+  return localStorage.getItem("rememberMe") === "1" ? localStorage : sessionStorage;
+}
+function isExpired(exp, skewSeconds = 30) {
+  if (!exp) return true;
+  const now = Math.floor(Date.now() / 1000);
+  return now >= exp - skewSeconds; 
+}
+function getTokenState() {
+  const storage = getStorage();
+  return {
+    accessToken: storage.getItem("accessToken"),
+    exp: Number(storage.getItem("tokenExp") || 0),
+    storage,
+  };
+}
+function clearSession() {
+  const storage = getStorage();
+  storage.removeItem("accessToken");
+  storage.removeItem("idToken");
+  storage.removeItem("refreshToken");
+  storage.removeItem("tokenExp");
+}
+
 export default function AdminShell() {
   const [open, setOpen] = useState(true);
+  const [checking, setChecking] = useState(true); 
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Cerrar el sidebar en móvil y verificar sesión en cada cambio de ruta
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) setOpen(false);
-  }, [location.pathname]);
+
+    const { accessToken, exp } = getTokenState();
+    if (!accessToken || isExpired(exp)) {
+      clearSession();
+      navigate("/login", { replace: true, state: { from: location } });
+    } else {
+      setChecking(false);
+    }
+  }, [location.pathname, navigate]);
 
   const links = [
     { label: "Dashboard", to: "/admin", icon: IconLayoutDashboard },
     { label: "Cotizaciones", to: "/admin/cotizaciones", icon: IconFileDollar },
     { label: "Clientes", to: "/admin/clientes", icon: IconUsersGroup },
   ];
+
+  const handleLogout = (e) => {
+    e.preventDefault();
+    clearSession();
+    navigate("/login", { replace: true });
+  };
+
+  if (checking) {
+    // Loader simple mientras validamos la sesión
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-white text-neutral-700">
+        <div className="animate-pulse rounded-lg border border-neutral-200 px-4 py-2">
+          Verificando sesión…
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen bg-gray-50 text-neutral-900 flex flex-col">
@@ -55,13 +103,7 @@ export default function AdminShell() {
             </div>
 
             <div className="border-t border-neutral-200 pt-4">
-              <button
-                className="w-full"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate("/login");
-                }}
-              >
+              <button className="w-full" onClick={handleLogout}>
                 <div className="relative flex items-center gap-3 rounded-xl px-3 py-2 text-left text-neutral-700 transition-colors hover:bg-neutral-100">
                   <IconLogout className="h-5 w-5" />
                   {open && <span className="truncate text-sm font-medium">Cerrar sesión</span>}
@@ -96,17 +138,14 @@ export default function AdminShell() {
 }
 
 function NavItem({ to, label, Icon, open, onNavigate }) {
-  const isRootAdmin = to === "/admin"; // solo el dashboard exacto
+  const isRootAdmin = to === "/admin"; // exact para el dashboard
   return (
     <NavLink
       to={to}
       end={isRootAdmin}
       onClick={onNavigate}
       className={({ isActive }) =>
-        cn(
-          "group block",
-          isActive && "[&_.navbtn]:bg-[rgb(34,128,62)] [&_.navbtn]:text-white"
-        )
+        cn("group block", isActive && "[&_.navbtn]:bg-[rgb(34,128,62)] [&_.navbtn]:text-white")
       }
     >
       <div className="navbtn relative flex items-center gap-3 rounded-xl px-3 py-2 text-neutral-700 transition-colors hover:bg-neutral-100">
