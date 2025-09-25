@@ -21,17 +21,35 @@ const SERVICIOS = [
   "Otro",
 ];
 
-// ====== API base y endpoint ======
+// ====== API base y endpoints ======
 const API_BASE = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, "");
-const QUOTES_PATH = "/adminQuotes/getPage?limit=200";
+const QUOTES_PAGE_PATH = "/adminQuotes/getPage?limit=200";
+const QUOTE_BY_ID_PATH = "/adminQuotes/getById"; // GET ?type=...&contactDni=...
+const S3_SIGNED_URL_PATH = "/s3_uploads/getSignedUrl"; 
+
+// Token helper
+function getAuthHeaders(extra = {}) {
+  //token desde localStorage o env
+  const token =
+    (typeof window !== "undefined" && localStorage.getItem("token")) ||
+    import.meta.env?.VITE_API_TOKEN ||
+    "";
+  const headers = {
+    Accept: "application/json",
+    Authorization: token ? `Bearer ${token}` : "",
+    ...extra,
+  };
+  return headers;
+}
 
 export default function Cotizaciones() {
-  const [data, setData] = useState([]); 
+  const [data, setData] = useState([]);
   const [q, setQ] = useState("");
   const [metodo, setMetodo] = useState("todos");
   const [servicio, setServicio] = useState("todos");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchQuotes();
@@ -40,16 +58,17 @@ export default function Cotizaciones() {
 
   async function fetchQuotes() {
     if (!API_BASE) {
-      console.warn("[Cotizaciones] VITE_API_URL vacío; no se cargan cotizaciones.");
+      console.warn("[Cotizaciones] VITE_API_URL vacío.");
       setData([]);
       setPage(1);
       return;
     }
-    const url = `${API_BASE}${QUOTES_PATH}`;
+    const url = `${API_BASE}${QUOTES_PAGE_PATH}`;
     try {
+      setLoading(true);
       const res = await fetch(url, {
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: getAuthHeaders(),
       });
 
       const text = await res.text();
@@ -77,26 +96,30 @@ export default function Cotizaciones() {
       console.error("[Cotizaciones] Error al cargar:", err);
       setData([]);
       setPage(1);
+    } finally {
+      setLoading(false);
     }
   }
 
-  // ====== Mapper: API → shape de tabla ======
+  // ====== API → fila de tabla ======
   function mapQuoteToRow(it) {
     if (!it) return null;
 
     const snap = it.contactSnapshot || {};
+    const dni = (snap.DNI || "").trim();
     const fullName = (snap.fullName || "").trim();
     const cellphone = (snap.cellphone || "").trim();
     const email = (snap.email || "").trim();
     const metodo = normalizeMethod(snap.preferContact);
 
+    const rawType = String(it.type || ""); // ej. "QUOTE#e2d9b1..."
+    const typeKey = rawType.startsWith("QUOTE#") ? rawType.slice(6) : rawType; // sin "QUOTE#"
+
     // Servicio
     const servicio =
       serviceLabelFromAPI(it) || guessServiceLabel(it.serviceData || it.details) || "—";
-
     // Estado
     const apiStatus = (it.status || "").toString().trim().toUpperCase();
-   
     const hasPdf = Boolean(it.pdfUrl);
     let status =
       apiStatus === "SENT"
@@ -105,20 +128,22 @@ export default function Cotizaciones() {
         ? "READY"
         : "PENDING";
 
+    // ID legible
+    const id = rawType.includes("#")
+      ? `Q-${rawType.split("#")[1].slice(0, 8).toUpperCase()}`
+      : undefined;
+
     return {
-      // id 
-      id:
-        String(it.type || "").includes("#")
-          ? `Q-${String(it.type).split("#")[1].slice(0, 8).toUpperCase()}`
-          : undefined,
+      id,
+      typeKey, // adminQuotes/getById
+      dni,     // adminQuotes/getById y para folderPath
       cliente: fullName || "—",
       telefono: cellphone || "—",
       email: email || "—",
       metodo,
       servicio,
-      status,  // "PENDING" | "READY" | "SENT"
+      status, // "PENDING" | "READY" | "SENT"
       pdfUrl: it.pdfUrl || null,
-      // campos de UI locales:
       pdfFile: null,
       pdfName: null,
     };
@@ -129,7 +154,8 @@ export default function Cotizaciones() {
     const s = String(m).toLowerCase();
     if (s.includes("whatsapp")) return "whatsapp";
     if (s.includes("email")) return "email";
-    if (s.includes("llamada") || s.includes("phone") || s.includes("call")) return "llamada";
+    if (s.includes("llamada") || s.includes("phone") || s.includes("call"))
+      return "llamada";
     return "whatsapp";
   }
 
@@ -143,7 +169,6 @@ export default function Cotizaciones() {
       TRAVEL: "Seguro de Viaje",
       ASSIST: "Repatriación y Asistencia",
       OTHER: "Otro",
-      // por si ya viene con label:
       "SEGURO DE VIDA": "Seguro de Vida",
       "SEGURO MÉDICO": "Seguro Médico",
       "SEGURO DE VEHÍCULO": "Seguro de Vehículo",
@@ -157,8 +182,7 @@ export default function Cotizaciones() {
   function guessServiceLabel(sd) {
     if (!sd || typeof sd !== "object") return "";
     if ("tripType" in sd || "destinations" in sd) {
-      const tt = sd.tripType ? ` (${capitalize(sd.tripType)})` : "";
-      return `Seguro de Viaje${tt}`;
+      return `Seguro de Viaje${sd.tripType ? ` (${capitalize(sd.tripType)})` : ""}`;
     }
     if ("vehicleBrand" in sd || "vehicleModel" in sd || "vehicleYear" in sd) {
       return "Seguro de Vehículo";
@@ -207,41 +231,142 @@ export default function Cotizaciones() {
     setPage(1);
   }
 
-  // === Eventos ===
-  function handleUploadPdf(rowId, file) {
-    if (!file) return;
-    setData((prev) =>
-      prev.map((r) => {
-        if (r.id !== rowId) return r;
-        // Si aún no está enviada, pasa a READY
-        const nextStatus = r.status === "SENT" ? "SENT" : "READY";
-        return {
-          ...r,
-          pdfFile: file,
-          pdfName: file.name,
-          status: nextStatus,
-        };
-      })
-    );
+  // ===== Subida de PDF con Signed URL =====
+function cleanFileName(name = "") {
+  const base = name.normalize("NFKD").replace(/[^\w.\- ]+/g, "");
+  return base.replace(/\s+/g, "_").slice(0, 180) || `archivo_${Date.now()}.pdf`;
+}
+
+// ===== Subida de PDF con Signed URL (usamos ID en folderPath(nombre)) =====
+async function handleUploadPdf(row, file) {
+  if (!file) return;
+
+  const typeKey = row?.typeKey || ""; // <- type sin "QUOTE#"
+  const dni = row?.dni || "";       // <- DNI del contacto para el path
+  if (!API_BASE) {
+    alert("No hay API_BASE configurado.");
+    return;
+  }
+  if (!typeKey) {
+    alert("No se encontró el typeKey (type sin QUOTE#) para el folderPath.");
+    return;
   }
 
-  function handleSend(row) {
-    if (!row.pdfFile) {
+  try {
+    const token =
+      (typeof window !== "undefined" && localStorage.getItem("token")) ||
+      import.meta.env?.VITE_API_TOKEN ||
+      "";
+
+    const folderPath = `uploads/quote/${dni}`;
+    const cleanName = cleanFileName(file.name);
+
+    // 1) Pide URL firmada
+    const signedRes = await fetch(`${API_BASE}${S3_SIGNED_URL_PATH}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+      body: JSON.stringify({
+        fileName: cleanName,
+        folderPath,
+        fileType: "pdf",
+      }),
+    });
+    console.log("[getSignedUrl] status:", signedRes.status, signedRes.statusText);
+    console.log("[signedRes] ", signedRes);
+
+    const signedTxt = await signedRes.text();
+    if (!signedRes.ok) {
+      console.error(
+        `[getSignedUrl] ${signedRes.status} ${signedRes.statusText} :: ${signedTxt.slice(0, 200)}`
+      );
+      alert("No se pudo obtener URL firmada.");
+      return;
+    }
+    const signedJson = signedTxt ? JSON.parse(signedTxt) : {};
+    const uploadURL = signedJson?.body?.uploadURL;
+    const fileURL   = signedJson?.body?.fileURL;
+    if (!uploadURL || !fileURL) {
+      console.error("Respuesta inválida de getSignedUrl:", signedJson);
+      alert("Respuesta inválida al solicitar URL firmada.");
+      return;
+    }
+
+    // Sube al bucket 
+    const putRes = await fetch(uploadURL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/pdf" },
+      body: file,
+    });
+    if (!putRes.ok) {
+      const t = await putRes.text().catch(() => "");
+      throw new Error(`PUT a S3 falló (${putRes.status}): ${t.slice(0, 180)}`);
+    }
+
+    // 3) Actualiza UI
+    setData(prev =>
+      prev.map(r =>
+        r.typeKey === row.typeKey
+          ? {
+              ...r,
+              pdfFile: file,
+              pdfName: cleanName,
+              pdfUrl: fileURL,            
+              status: r.status === "SENT" ? "SENT" : "READY",
+            }
+          : r
+      )
+    );
+  } catch (e) {
+    console.error("[Upload PDF] ", e);
+    alert(`Falló la subida de PDF: ${e.message}`);
+  }
+}
+
+  // ===== Enviar cotización =====
+  async function handleSend(row) {
+    if (!row.pdfFile && !row.pdfUrl) {
       alert(`La cotización ${row.id || ""} no tiene PDF cargado. Súbelo antes de enviar.`);
       return;
     }
-    const mensaje =
-      row.metodo === "whatsapp"
-        ? `Enviar por WhatsApp a ${row.telefono}`
-        : row.metodo === "email"
-        ? `Enviar correo a ${row.email}`
-        : `Realizar llamada a ${row.telefono}`;
-    alert(
-      `Cotización ${row.id || ""}: ${mensaje}\nPDF adjunto: ${row.pdfName || "archivo.pdf"}`
-    );
-    setData((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, status: "SENT" } : r))
-    );
+    if (!API_BASE) {
+      alert("No hay API_BASE configurado.");
+      return;
+    }
+    if (!row.typeKey || !row.dni) {
+      alert("Faltan datos para enviar (type o DNI).");
+      return;
+    }
+
+    const url = new URL(`${API_BASE}${QUOTE_BY_ID_PATH}`, window.location.origin);
+    // Parámetros
+    const finalUrl = `${API_BASE}${QUOTE_BY_ID_PATH}?type=${encodeURIComponent(
+      row.typeKey
+    )}&contactDni=${encodeURIComponent(row.dni)}`;
+
+    try {
+      const res = await fetch(finalUrl, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(
+          `GET getById falló (${res.status}): ${text.slice(0, 180)}`
+        );
+      }
+      setData((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "SENT" } : r))
+      );
+      alert("Cotización enviada correctamente.");
+    } catch (e) {
+      console.error("[Enviar] ", e);
+      alert(`No se pudo enviar la cotización: ${e.message}`);
+    }
   }
 
   return (
@@ -255,7 +380,7 @@ export default function Cotizaciones() {
             className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-100"
             title="Refrescar desde el servidor"
           >
-            Refrescar
+            {loading ? "Cargando..." : "Refrescar"}
           </button>
         </div>
       </div>
@@ -348,10 +473,10 @@ export default function Cotizaciones() {
 
       {/* Tabla */}
       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
-        <table className="min-w-[900px] w-full text-left text-sm">
+        <table className="min-w-[980px] w-full text-left text-sm">
           <thead className="bg-neutral-50 text-neutral-600">
             <tr>
-              {/* <Th>No. cotización</Th>*/}
+              {/* <Th>No. cotización</Th> */}
               <Th>Cliente</Th>
               <Th>Teléfono</Th>
               <Th>Email</Th>
@@ -391,7 +516,7 @@ export default function Cotizaciones() {
                         accept="application/pdf"
                         className="hidden"
                         onChange={(e) =>
-                          handleUploadPdf(row.id, e.target.files?.[0])
+                          handleUploadPdf(row, e.target.files?.[0])
                         }
                       />
                       <button
