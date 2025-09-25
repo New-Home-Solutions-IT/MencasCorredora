@@ -1202,24 +1202,31 @@ export default function SeguroDetalle() {
     return dob <= adultCutoff;
   }
 
-  function serviceTypeFromSlug(slug) {
-    switch (slug) {
-      case "vehiculo":
-        return "AUTO";
-      case "medico":
-        return "MEDICAL";
-      case "propiedad":
-        return "PROPERTY";
-      case "viaje":
-        return "TRAVEL";
-      case "asistencia":
-        return "ASSIST";
-      case "vida":
-        return "LIFE";
-      default:
-        return "OTHER";
-    }
+ // Servicios 
+function serviceTypeCodeFromSlug(slug) {
+  switch (slug) {
+    case "vehiculo":   return "AUTO";
+    case "medico":     return "MEDICAL";
+    case "propiedad":  return "PROPERTY";
+    case "viaje":      return "TRAVEL";
+    case "asistencia": return "ASSIST";
+    case "vida":       return "LIFE";
+    default:           return "OTHER";
   }
+}
+
+function serviceTypeLabelFromSlug(slug) {
+  switch (slug) {
+    case "vehiculo":   return "Seguro de Vehículo";
+    case "medico":     return "Seguro Médico";
+    case "propiedad":  return "Seguro de Propiedad";
+    case "viaje":      return "Seguro de Viaje";
+    case "asistencia": return "Repatriación y Asistencia";
+    case "vida":       return "Seguro de Vida";
+    default:           return "Otro";
+  }
+}
+
 
   // Normaliza numéricos
   const numOrNull = (v) => {
@@ -1407,7 +1414,8 @@ export default function SeguroDetalle() {
       // 2 COTIZACIÓN
       const quotePayload = {
         recordType: "QUOTE",
-        serviceType: serviceTypeFromSlug(slug),
+        serviceType: serviceTypeLabelFromSlug(slug),
+        serviceTypeCode: serviceTypeCodeFromSlug(slug),
         details: buildDetails(),
         contactSnapshot: {
           DNI: contactPayload.DNI || "",
@@ -1424,7 +1432,7 @@ export default function SeguroDetalle() {
         status: "PENDING",
         createdAt: new Date().toISOString(),
       };
-
+      console.log("Enviando cotización:", quotePayload);
       const quoteRes = await fetch(QUOTES_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

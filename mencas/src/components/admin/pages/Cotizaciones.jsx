@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
 import {
-  IconPlus,
   IconSearch,
   IconFilter,
   IconFileTypePdf,
@@ -12,68 +11,28 @@ import {
 
 const BRAND = "rgb(34,128,62)";
 const METODOS = ["whatsapp", "email", "llamada"];
-const SERVICIOS = ["Transporte", "Fumigación", "Riego", "Mantenimiento", "Asesoría"];
-const MOCK = [
-  {
-    id: "Q-2025-001",
-    cliente: "Pedro López",
-    telefono: "+504 9876-1234",
-    email: "p.lopez@gmail.hn",
-    metodo: "whatsapp",
-    servicio: "Seguro de Vida",
-    pdfUrl: null,
-  },
-  {
-    id: "Q-2025-002",
-    cliente: "Mario Perez",
-    telefono: "+504 9988-2211",
-    email: "mario@hotmail.hn",
-    metodo: "email",
-    servicio: "Seguro de Maquinaria",
-    pdfUrl: null,
-  },
-  {
-    id: "Q-2025-003",
-    cliente: "María García",
-    telefono: "+504 9911-4433",
-    email: "garica@dgmail.hn",
-    metodo: "llamada",
-    servicio: "Seguro de Propiedad",
-    pdfUrl: null,
-  },
-  {
-    id: "Q-2025-004",
-    cliente: "Cooperativa Apaguiz",
-    telefono: "+504 3300-1100",
-    email: "cooperativa@gmail.hn",
-    metodo: "whatsapp",
-    servicio: "Seguro Colectivo Personas",
-    pdfUrl: null,
-  },
-  {
-    id: "Q-2025-005",
-    cliente: "Carlos Martínez",
-    telefono: "+504 3200-7788",
-    email: "carlos@gmail.hn",
-    metodo: "email",
-    servicio: "Seguro de Vehiculo",
-    pdfUrl: null,
-  },
+const SERVICIOS = [
+  "Seguro de Vida",
+  "Seguro Médico",
+  "Seguro de Vehículo",
+  "Seguro de Propiedad",
+  "Seguro de Viaje",
+  "Repatriación y Asistencia",
+  "Otro",
 ];
 
 // ====== API base y endpoint ======
-const API_BASE = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, ""); // ej: http://127.0.0.1:3000/dev/mencas
+const API_BASE = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, "");
 const QUOTES_PATH = "/adminQuotes/getPage?limit=200";
 
 export default function Cotizaciones() {
-  const [data, setData] = useState(MOCK);
+  const [data, setData] = useState([]); 
   const [q, setQ] = useState("");
   const [metodo, setMetodo] = useState("todos");
   const [servicio, setServicio] = useState("todos");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
 
-  // ===== Carga inicial desde API =====
   useEffect(() => {
     fetchQuotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,7 +40,9 @@ export default function Cotizaciones() {
 
   async function fetchQuotes() {
     if (!API_BASE) {
-      console.warn("[Cotizaciones] VITE_API_URL vacío; usando MOCK.");
+      console.warn("[Cotizaciones] VITE_API_URL vacío; no se cargan cotizaciones.");
+      setData([]);
+      setPage(1);
       return;
     }
     const url = `${API_BASE}${QUOTES_PATH}`;
@@ -94,33 +55,32 @@ export default function Cotizaciones() {
       const text = await res.text();
       const ct = (res.headers.get("content-type") || "").toLowerCase();
 
-      if (!res.ok) {
-        console.error(`[Cotizaciones] HTTP ${res.status} ${res.statusText} CT=${ct} Preview=${text.slice(0, 120)}`);
-        return; 
-      }
-      if (!ct.includes("application/json")) {
-        console.error(`[Cotizaciones] Esperaba JSON pero CT=${ct} Preview=${text.slice(0, 120)}`);
-        return; 
+      if (!res.ok || !ct.includes("application/json")) {
+        console.error(
+          `[Cotizaciones] Respuesta inválida: ${res.status} CT=${ct} Preview=${text.slice(
+            0,
+            120
+          )}`
+        );
+        setData([]);
+        setPage(1);
+        return;
       }
 
       const json = JSON.parse(text);
-      // Estructura: { message, quotes: { items: [...], nextPageToken }, lastEvaluatedKey }
       const items = json?.quotes?.items ?? [];
       const normalized = items.map(mapQuoteToRow).filter(Boolean);
 
-      if (normalized.length) {
-        setData(normalized);
-        setPage(1);
-      } else {
-        console.warn("[Cotizaciones] API respondió sin items. Mantengo MOCK.");
-      }
+      setData(normalized);
+      setPage(1);
     } catch (err) {
       console.error("[Cotizaciones] Error al cargar:", err);
-      // Mantiene MOCK para no vaciar UI
+      setData([]);
+      setPage(1);
     }
   }
 
-  // ====== Mapper: API → shape de tabla (como MOCK) ======
+  // ====== Mapper: API → shape de tabla ======
   function mapQuoteToRow(it) {
     if (!it) return null;
 
@@ -128,26 +88,39 @@ export default function Cotizaciones() {
     const fullName = (snap.fullName || "").trim();
     const cellphone = (snap.cellphone || "").trim();
     const email = (snap.email || "").trim();
-    const metodo = normalizeMethod(snap.preferContact); // "whatsapp" | "email" | "llamada"
+    const metodo = normalizeMethod(snap.preferContact);
 
-    // ID legible a partir de type "QUOTE#<uuid>"
-    const rawType = String(it.type || "");
-    const id =
-      rawType.includes("#")
-        ? `Q-${rawType.split("#")[1].slice(0, 8).toUpperCase()}`
-        : `Q-${(snap.DNI || "XXXX").slice(-4)}-${(it.searchDate || "").slice(2, 4)}`;
+    // Servicio
+    const servicio =
+      serviceLabelFromAPI(it) || guessServiceLabel(it.serviceData || it.details) || "—";
 
-    // Servicio amigable desde serviceData (vehículo / viaje / genérico)
-    const servicio = guessServiceLabel(it.serviceData);
+    // Estado
+    const apiStatus = (it.status || "").toString().trim().toUpperCase();
+   
+    const hasPdf = Boolean(it.pdfUrl);
+    let status =
+      apiStatus === "SENT"
+        ? "SENT"
+        : hasPdf || apiStatus === "READY"
+        ? "READY"
+        : "PENDING";
 
     return {
-      id,
+      // id 
+      id:
+        String(it.type || "").includes("#")
+          ? `Q-${String(it.type).split("#")[1].slice(0, 8).toUpperCase()}`
+          : undefined,
       cliente: fullName || "—",
       telefono: cellphone || "—",
       email: email || "—",
       metodo,
-      servicio: servicio || "—",
-      pdfUrl: null, // backend aún no entrega PDF
+      servicio,
+      status,  // "PENDING" | "READY" | "SENT"
+      pdfUrl: it.pdfUrl || null,
+      // campos de UI locales:
+      pdfFile: null,
+      pdfName: null,
     };
   }
 
@@ -160,23 +133,46 @@ export default function Cotizaciones() {
     return "whatsapp";
   }
 
+  function serviceLabelFromAPI(it) {
+    const raw = (it?.serviceType || it?.service || "").toString().trim().toUpperCase();
+    const map = {
+      LIFE: "Seguro de Vida",
+      MEDICAL: "Seguro Médico",
+      AUTO: "Seguro de Vehículo",
+      PROPERTY: "Seguro de Propiedad",
+      TRAVEL: "Seguro de Viaje",
+      ASSIST: "Repatriación y Asistencia",
+      OTHER: "Otro",
+      // por si ya viene con label:
+      "SEGURO DE VIDA": "Seguro de Vida",
+      "SEGURO MÉDICO": "Seguro Médico",
+      "SEGURO DE VEHÍCULO": "Seguro de Vehículo",
+      "SEGURO DE PROPIEDAD": "Seguro de Propiedad",
+      "SEGURO DE VIAJE": "Seguro de Viaje",
+      "REPATRIACIÓN Y ASISTENCIA": "Repatriación y Asistencia",
+    };
+    return map[raw] || "";
+  }
+
   function guessServiceLabel(sd) {
     if (!sd || typeof sd !== "object") return "";
-    // Viaje
     if ("tripType" in sd || "destinations" in sd) {
       const tt = sd.tripType ? ` (${capitalize(sd.tripType)})` : "";
       return `Seguro de Viaje${tt}`;
     }
-    // Vehículo
     if ("vehicleBrand" in sd || "vehicleModel" in sd || "vehicleYear" in sd) {
       return "Seguro de Vehículo";
     }
-    // Vida/Personas (heurística por estructura de titular/pareja)
-    if ("titular" in sd || "pareja" in sd) {
-      return "Seguro de Personas";
+    if ("titular" in sd || "pareja" in sd || "sumAssured" in sd) {
+      return "Seguro de Vida";
     }
-    // Fallback: intenta desde searchKey
-    return "";
+    if ("propertyType" in sd || "propertyValue" in sd) {
+      return "Seguro de Propiedad";
+    }
+    if ("migrant" in sd) {
+      return "Repatriación y Asistencia";
+    }
+    return "Otro";
   }
 
   function capitalize(s) {
@@ -189,7 +185,7 @@ export default function Cotizaciones() {
     return data.filter((row) => {
       const matchesSearch =
         !term ||
-        row.id.toLowerCase().includes(term) ||
+        (row.id || "").toLowerCase().includes(term) ||
         row.cliente.toLowerCase().includes(term) ||
         row.telefono.toLowerCase().includes(term) ||
         row.email.toLowerCase().includes(term);
@@ -204,25 +200,34 @@ export default function Cotizaciones() {
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
   const pageRows = filtered.slice(start, start + pageSize);
+  const isFiltered =
+    q.trim().length > 0 || metodo !== "todos" || servicio !== "todos";
 
   function resetToFirstPage() {
     setPage(1);
   }
 
-  // Subida de PDF
+  // === Eventos ===
   function handleUploadPdf(rowId, file) {
     if (!file) return;
     setData((prev) =>
-      prev.map((r) =>
-        r.id === rowId ? { ...r, pdfFile: file, pdfName: file.name } : r
-      )
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        // Si aún no está enviada, pasa a READY
+        const nextStatus = r.status === "SENT" ? "SENT" : "READY";
+        return {
+          ...r,
+          pdfFile: file,
+          pdfName: file.name,
+          status: nextStatus,
+        };
+      })
     );
   }
 
-  // Enviar según método preferido (valida PDF)
   function handleSend(row) {
     if (!row.pdfFile) {
-      alert(`La cotización ${row.id} no tiene PDF cargado. Súbelo antes de enviar.`);
+      alert(`La cotización ${row.id || ""} no tiene PDF cargado. Súbelo antes de enviar.`);
       return;
     }
     const mensaje =
@@ -231,13 +236,17 @@ export default function Cotizaciones() {
         : row.metodo === "email"
         ? `Enviar correo a ${row.email}`
         : `Realizar llamada a ${row.telefono}`;
-    alert(`Cotización ${row.id}: ${mensaje}\nPDF adjunto: ${row.pdfName || "archivo.pdf"}`);
-    // integrar backend para enviar realmente
+    alert(
+      `Cotización ${row.id || ""}: ${mensaje}\nPDF adjunto: ${row.pdfName || "archivo.pdf"}`
+    );
+    setData((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, status: "SENT" } : r))
+    );
   }
 
   return (
     <div className="space-y-4">
-      {/* Header con acciones rápidas */}
+      {/* Header */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <h1 className="text-lg font-semibold">Cotizaciones</h1>
         <div className="flex items-center gap-2">
@@ -248,10 +257,6 @@ export default function Cotizaciones() {
           >
             Refrescar
           </button>
-          {/* <button className="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,128,62)] px-3 py-2 text-sm font-medium text-white hover:opacity-90">
-            <IconPlus className="h-4 w-4" />
-            Nueva cotización
-          </button> */}
         </div>
       </div>
 
@@ -267,14 +272,16 @@ export default function Cotizaciones() {
                 setQ(e.target.value);
                 resetToFirstPage();
               }}
-              placeholder="Buscar por Cliente, teléfono o email"
+              placeholder="Buscar por cliente, teléfono, email o ID"
               className="w-full rounded-lg border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgba(34,128,62,0.25)]"
             />
           </div>
         </div>
 
         <div className="md:col-span-3">
-          <label className="mb-1 block text-xs text-neutral-500">Método preferido</label>
+          <label className="mb-1 block text-xs text-neutral-500">
+            Método preferido
+          </label>
           <div className="relative">
             <IconFilter className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-neutral-400" />
             <select
@@ -296,7 +303,9 @@ export default function Cotizaciones() {
         </div>
 
         <div className="md:col-span-3">
-          <label className="mb-1 block text-xs text-neutral-500">Tipo de servicio</label>
+          <label className="mb-1 block text-xs text-neutral-500">
+            Tipo de servicio
+          </label>
           <div className="relative">
             <IconFilter className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-neutral-400" />
             <select
@@ -342,12 +351,13 @@ export default function Cotizaciones() {
         <table className="min-w-[900px] w-full text-left text-sm">
           <thead className="bg-neutral-50 text-neutral-600">
             <tr>
-              <Th>No. cotización</Th>
+              {/* <Th>No. cotización</Th>*/}
               <Th>Cliente</Th>
               <Th>Teléfono</Th>
               <Th>Email</Th>
               <Th>Método preferido</Th>
               <Th>Tipo de servicio</Th>
+              <Th>Estado</Th>
               <Th className="text-right pr-4">Acciones</Th>
             </tr>
           </thead>
@@ -355,40 +365,55 @@ export default function Cotizaciones() {
             {pageRows.length === 0 && (
               <tr>
                 <td colSpan={7} className="p-6 text-center text-neutral-500">
-                  No hay resultados con los filtros actuales.
+                  {isFiltered
+                    ? "No hay resultados con los filtros actuales."
+                    : "No hay información disponible."}
                 </td>
               </tr>
             )}
 
             {pageRows.map((row) => (
-              <tr key={row.id} className="border-t">
-                <Td>{row.id}</Td>
+              <tr key={row.id || `${row.email}-${row.telefono}`} className="border-t">
+                {/* <Td>{row.id}</Td> */}
                 <Td className="font-medium">{row.cliente}</Td>
                 <Td>{row.telefono}</Td>
                 <Td className="truncate">{row.email}</Td>
                 <Td><MetodoBadge metodo={row.metodo} /></Td>
                 <Td>{row.servicio}</Td>
+                <Td><EstadoBadge status={row.status} /></Td>
                 <Td className="pr-4">
                   <div className="flex justify-end gap-2">
                     {/* Subir PDF */}
                     <div>
                       <input
-                        id={`pdf-${row.id}`}
+                        id={`pdf-${row.id || `${row.email}-${row.telefono}`}`}
                         type="file"
                         accept="application/pdf"
                         className="hidden"
-                        onChange={(e) => handleUploadPdf(row.id, e.target.files?.[0])}
+                        onChange={(e) =>
+                          handleUploadPdf(row.id, e.target.files?.[0])
+                        }
                       />
                       <button
-                        onClick={() => document.getElementById(`pdf-${row.id}`)?.click()}
+                        onClick={() =>
+                          document
+                            .getElementById(`pdf-${row.id || `${row.email}-${row.telefono}`}`)
+                            ?.click()
+                        }
                         className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 hover:bg-neutral-100"
-                        title={row.pdfFile ? `PDF subido: ${row.pdfName}` : "Subir PDF"}
+                        title={
+                          row.pdfFile
+                            ? `PDF subido: ${row.pdfName}`
+                            : "Subir PDF"
+                        }
                       >
                         <IconFileTypePdf className="h-4 w-4" />
                         <span className="hidden sm:inline">
                           {row.pdfFile ? "Reemplazar PDF" : "Subir PDF"}
                         </span>
-                        {row.pdfFile && <IconCheck className="h-4 w-4 text-[rgb(34,128,62)]" />}
+                        {row.pdfFile && (
+                          <IconCheck className="h-4 w-4 text-[rgb(34,128,62)]" />
+                        )}
                       </button>
                     </div>
 
@@ -472,6 +497,29 @@ function MetodoBadge({ metodo }) {
   return (
     <span className="rounded-full bg-[rgba(245,158,11,0.12)] px-2 py-0.5 text-xs font-medium text-[rgb(217,119,6)]">
       Llamada
+    </span>
+  );
+}
+
+function EstadoBadge({ status }) {
+  // status: "PENDING" | "READY" | "SENT"
+  if (status === "SENT") {
+    return (
+      <span className="rounded-full bg-[rgba(16,185,129,0.12)] px-2 py-0.5 text-xs font-medium text-emerald-600">
+        Enviada
+      </span>
+    );
+  }
+  if (status === "READY") {
+    return (
+      <span className="rounded-full bg-[rgba(59,130,246,0.12)] px-2 py-0.5 text-xs font-medium text-blue-600">
+        Lista
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-[rgba(245,158,11,0.12)] px-2 py-0.5 text-xs font-medium text-amber-600">
+      Pendiente
     </span>
   );
 }
