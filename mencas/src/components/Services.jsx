@@ -1,4 +1,3 @@
-// Services.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import SpotlightCard from "../../src/components/ui/SpotlightCard";
@@ -18,7 +17,7 @@ const SLUGS = {
   "Seguro de Repatriación": "asistencia",
 };
 
-// NUEVO: rutas dedicadas para “Beneficios”
+//rutas dedicadas para “Beneficios”
 const BENEFICIOS_ROUTES = {
   "Vehículo": "/beneficios/vehiculo",
   "Médico": "/beneficios/medico",
@@ -72,14 +71,14 @@ export default function Services() {
     navigate(`/seguros/${slug}`); // abre el wizard
   };
 
-  // ACTUALIZADO: beneficios van a su propia ruta por seguro
+  // beneficios van a su propia ruta por seguro
   const goToBeneficios = (title) => {
     const path = BENEFICIOS_ROUTES[title];
     if (!path) return;
     navigate(path);
   };
 
-  // ACTUALIZADO: click en tarjeta ⇒ beneficios
+  // click en tarjeta ⇒ beneficios
   const onCardClick = (title) => goToBeneficios(title);
 
   return (

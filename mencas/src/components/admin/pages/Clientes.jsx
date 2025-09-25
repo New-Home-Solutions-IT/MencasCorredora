@@ -1,5 +1,4 @@
-// src/components/admin/pages/Clientes.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   IconPlus,
   IconSearch,
@@ -12,44 +11,226 @@ import {
   IconUpload,
 } from "@tabler/icons-react";
 
-const BRAND = "rgb(34,128,62)";
 const METODOS = ["whatsapp", "email", "llamada"];
+const GENEROS = ["Male", "Female"];
 
-const MOCK = [
-  {
-    id: "0801-1998-05788",
-    nombre: "Ana López",
-    telefono: "+504 9988-2211",
-    email: "ana@example.com",
-    metodo: "whatsapp",
-    ocupacion: "Ingeniera Agrónoma",
-    edad: 27,
-    direccion: "Col. Miraflores, Tegucigalpa",
-  },
-  {
-    id: "0801-1985-11223",
-    nombre: "Carlos Mejía",
-    telefono: "+504 9911-3344",
-    email: "carlos.mejia@correo.hn",
-    metodo: "email",
-    ocupacion: "Distribuidor",
-    edad: 39,
-    direccion: "Barrio Abajo, Tegucigalpa",
-  },
-  {
-    id: "0801-1992-00991",
-    nombre: "María Fernández",
-    telefono: "+504 9876-1122",
-    email: "mariaf@empresa.hn",
-    metodo: "llamada",
-    ocupacion: "Productora",
-    edad: 33,
-    direccion: "Col. San Ángel, Tegucigalpa",
-  },
+// ===== API base y endpoints =====
+const API_BASE = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, "");
+const CONTACTS_PATH = "/contacts/getAll";
+const CONTACTS_UPDATE_PATH = "/contacts/update";
+const CONTACTS_ADD_PATH = "/contacts/add";
+const S3_GET_SIGNED_URL_PATH = "/s3_uploads/getSignedUrl";
+const CONTACTS_CREATE_BATCH_PATH = "/contacts/createBatch";
+const CONTACTS_DELETE_PATH = "/contacts/delete";
+
+// IdToken desde localStorage
+function getIdToken() {
+  return (
+    localStorage.getItem("IdToken") ||
+    localStorage.getItem("idToken") ||
+    localStorage.getItem("auth.idToken") ||
+    ""
+  );
+}
+function toRawDNI(v) {
+  return String(v || "").replace(/\D/g, ""); 
+}
+
+/* =========================
+   Normalizadores / mappers
+========================= */
+function normalizePhone(p) {
+  const raw = String(p || "");
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  if (raw.startsWith("+")) return raw;
+  if (digits.length === 8) return `+504${digits}`;
+  return `+${digits}`;
+}
+
+function mapPreferContactOut(m) {
+  const s = String(m || "").toLowerCase();
+  if (s.includes("whats")) return "whatsapp";
+  if (s.includes("mail")) return "email";
+  if (s.includes("llam") || s.includes("phone") || s.includes("call"))
+    return "llamada";
+  return "whatsapp";
+}
+
+function buildContactBodyFromForm(f) {
+  const out = {
+    recordType: "PROFILE",
+    fullName: (f.nombre || "").trim(),
+    DNI: String(f.id || "").replace(/\D/g, ""),
+    cellphone: normalizePhone(f.telefono),
+    preferContact: mapPreferContactOut(f.metodo),
+    enabled: true,
+  };
+  if (f.email?.trim()) out.email = f.email.trim();
+  if (f.gender?.trim()) out.gender = f.gender.trim(); // "Male" | "Female"
+  if (f.birthDate?.trim()) out.birthDate = f.birthDate.trim(); // "YYYY-MM-DD"
+  return out;
+}
+
+/* =========================
+   Utilidades varias
+========================= */
+function normalizeMethod(m) {
+  if (!m) return "whatsapp";
+  const s = String(m).toLowerCase().trim();
+  if (s.includes("whatsapp")) return "whatsapp";
+  if (s.includes("email")) return "email";
+  if (s.includes("llam") || s.includes("call") || s.includes("phone"))
+    return "llamada";
+  return "whatsapp";
+}
+
+function formatHNIdentity(dni) {
+  const digits = String(dni || "").replace(/\D/g, "");
+  if (digits.length === 13) {
+    return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+  return dni || "";
+}
+
+function ageFromBirthDate(birth) {
+  if (!birth) return "";
+  const d = new Date(birth);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age >= 0 && age <= 120 ? age : "";
+}
+
+// Merge por id 
+function mergeRowsById(prev, incoming) {
+  const map = new Map(prev.map((r) => [r.id, r]));
+  for (const row of incoming) map.set(row.id, row);
+  return Array.from(map.values());
+}
+
+/* =========================
+   CSV helpers
+========================= */
+const TEMPLATE_HEADERS = [
+  "nombre",
+  "telefono",
+  "email",
+  "metodopreferido",
+  "genero",
+  "DNI",
+  "fechadeNacimiento",
 ];
+function normalizeHeader(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+const REQUIRED_HEADERS_NORM = TEMPLATE_HEADERS.map(normalizeHeader);
+function splitCsvLine(line) {
+  const out = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQ = !inQ;
+      }
+    } else if (ch === "," && !inQ) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+/* =========================
+    Lectura robusta del archivo (UTF-8 con/sin BOM o Latin-1)
+========================= */
+async function readFileSmart(file) {
+  const buf = await file.arrayBuffer();
 
+  // Primero intentamos UTF-8
+  let text = tryDecode(buf, "utf-8");
+
+  // Si aparecen varios caracteres, reintenta Latin-1 (ISO-8859-1)
+  const bad = (text.match(/\uFFFD/g) || []).length;
+  if (bad > 3) text = tryDecode(buf, "iso-8859-1");
+
+  // Quita BOM si viniera
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  return text;
+}
+
+function tryDecode(arrayBuffer, encoding) {
+  try {
+    return new TextDecoder(encoding, { fatal: false }).decode(
+      new Uint8Array(arrayBuffer)
+    );
+  } catch {
+    return new TextDecoder().decode(new Uint8Array(arrayBuffer));
+  }
+}
+
+// ===== Parser CSV que respeta comillas y deja el encabezado tal cual =====
+function parseCsvKeepHeader(text) {
+  const lines = text
+    .replace(/\r/g, "")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { headersRaw: [], rows: [] };
+
+  const parseLine = (line) => {
+    const out = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQ = !inQ;
+        }
+      } else if (ch === "," && !inQ) {
+        out.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out;
+  };
+
+  // Encabezados 
+  const headersRaw = parseLine(lines[0]);
+  if (headersRaw.length && headersRaw[0].charCodeAt(0) === 0xfeff) {
+    headersRaw[0] = headersRaw[0].slice(1);
+  }
+
+  const rows = lines.slice(1).map(parseLine);
+  return { headersRaw, rows };
+}
+
+/* =========================
+          Componente
+========================= */
 export default function Clientes() {
-  const [data, setData] = useState(MOCK);
+  const [data, setData] = useState([]);
   const [q, setQ] = useState("");
   const [metodo, setMetodo] = useState("todos");
   const [page, setPage] = useState(1);
@@ -59,6 +240,18 @@ export default function Clientes() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(getEmptyForm());
 
+  const [loading, setLoading] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
+  const lastKeyRef = useRef(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    refreshFromServer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function getEmptyForm() {
     return {
       id: "",
@@ -66,27 +259,133 @@ export default function Clientes() {
       telefono: "",
       email: "",
       metodo: "whatsapp",
-      ocupacion: "",
-      edad: "",
-      direccion: "",
+      gender: "", // "Male" | "Female"
+      birthDate: "", // "YYYY-MM-DD"
     };
   }
 
-  // Filtro + búsqueda
+  async function refreshFromServer() {
+    lastKeyRef.current = null;
+    await fetchContacts({ append: false, limit: 1000 });
+  }
+
+  async function loadMore() {
+    if (!lastKeyRef.current) return;
+    await fetchContacts({
+      append: true,
+      limit: 2000,
+      lastKey: lastKeyRef.current,
+    });
+  }
+
+  // GET /contacts/getAll
+  async function fetchContacts({ append, limit = 1000, lastKey } = {}) {
+    setErrMsg("");
+    if (!API_BASE) {
+      setErrMsg("VITE_API_URL no está configurado.");
+      return;
+    }
+    const token = getIdToken();
+    if (!token) {
+      setErrMsg("No hay IdToken en localStorage. Inicia sesión nuevamente.");
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    if (lastKey && typeof lastKey === "object") {
+      params.set("lastKey", encodeURIComponent(JSON.stringify(lastKey)));
+    }
+    params.set("_t", String(Date.now())); // cache buster
+
+    const url = `${API_BASE}${CONTACTS_PATH}?${params.toString()}`;
+
+    try {
+      setLoading(true);
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+        cache: "no-store",
+      });
+
+      const text = await res.text();
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+      if (!res.ok) {
+        console.error(
+          `[Clientes] HTTP ${res.status} ${
+            res.statusText
+          } CT=${ct} :: ${text.slice(0, 160)}`
+        );
+        setErrMsg(`Error ${res.status}: no se pudo cargar contactos.`);
+        return;
+      }
+      if (!ct.includes("application/json")) {
+        console.error(
+          `[Clientes] Esperaba JSON pero CT=${ct} :: ${text.slice(0, 160)}`
+        );
+        setErrMsg("La API no devolvió JSON válido.");
+        return;
+      }
+
+      const json = JSON.parse(text);
+      const items = json?.contacts?.items ?? [];
+      const normalized = items.map(mapFromApiToRow).filter(Boolean);
+      lastKeyRef.current = json?.contacts?.lastKey ?? null;
+
+      if (append) {
+        setData((prev) => [...prev, ...normalized]);
+      } else {
+        setData((prev) => mergeRowsById(prev, normalized));
+        setPage(1);
+      }
+    } catch (err) {
+      console.error("[Clientes] Error al cargar contactos:", err);
+      setErrMsg("Error de red al cargar contactos.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // API -> tabla
+  function mapFromApiToRow(it) {
+    if (!it) return null;
+    const nombre = (it.fullName|| "").trim();
+    const telefono = (it.cellphone || "").trim();
+    const email = (it.email || "").trim();
+    const metodo = normalizeMethod(it.preferContact);
+    const id = formatHNIdentity(it.DNI || "");
+    const birthDate = it.birthDate || "";
+    const gender = it.gender || "";
+    return { id, nombre, telefono, email, metodo, birthDate, gender };
+  }
+
+  // Filtro + búsqueda (orden alfabético por nombre)
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return data.filter((row) => {
+    const base = data.filter((row) => {
       const matchesQ =
         !term ||
         row.nombre.toLowerCase().includes(term) ||
         row.telefono.toLowerCase().includes(term) ||
         row.email.toLowerCase().includes(term) ||
-        row.id.toLowerCase().includes(term) ||
-        row.ocupacion.toLowerCase().includes(term) ||
-        row.direccion.toLowerCase().includes(term);
+        row.id.toLowerCase().includes(term);
       const matchesMetodo = metodo === "todos" || row.metodo === metodo;
       return matchesQ && matchesMetodo;
     });
+
+    return base.slice().sort((a, b) =>
+      (a.nombre || "").localeCompare(b.nombre || "", "es", {
+        sensitivity: "base",
+        ignorePunctuation: true,
+        numeric: true,
+      })
+    );
   }, [data, q, metodo]);
 
   const total = filtered.length;
@@ -99,49 +398,174 @@ export default function Clientes() {
     setPage(1);
   }
 
-  // Guardar (crear/editar)
-  function handleSave(e) {
+  // Guardar (crear/editar) 
+  async function handleSave(e) {
     e.preventDefault();
 
     if (!form.nombre.trim()) return alert("El nombre es obligatorio.");
     if (!form.id.trim())
-      return alert("La ID es obligatoria (formato HN: 0801-AAAA-NNNNN).");
+      return alert("La ID es obligatoria (0801-AAAA-NNNNN).");
     if (!/^\d{4}-\d{4}-\d{5}$/.test(form.id))
-      return alert("ID inválida. Ejemplo válido: 0801-1998-05788");
+      return alert("ID inválida. Ej: 0801-1998-05788");
+    if (!normalizePhone(form.telefono))
+      return alert("Teléfono inválido o vacío.");
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       return alert("Email inválido.");
 
-    const payload = {
-      ...form,
-      metodo: (form.metodo || "whatsapp").toLowerCase(),
-      edad: form.edad ? Number(form.edad) : "",
-    };
+    try {
+      setLoading(true);
+      setErrMsg("");
 
-    setData((prev) => {
+      const token = getIdToken();
+      if (!token) throw new Error("Sin IdToken");
+
+      const body = buildContactBodyFromForm(form);
+
       if (editingId) {
-        return prev.map((r) => (r.id === editingId ? payload : r));
-      }
-      if (prev.some((r) => r.id === payload.id)) {
-        alert("Ya existe un cliente con esa ID.");
-        return prev;
-      }
-      return [payload, ...prev];
-    });
+        // EDITAR
+        const res = await fetch(`${API_BASE}${CONTACTS_UPDATE_PATH}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          console.error(
+            `[PUT update] ${res.status} ${res.statusText} :: ${text.slice(
+              0,
+              200
+            )}`
+          );
+          alert(`Error ${res.status} al actualizar.`);
+          return;
+        }
+      } else {
+        // CREAR
+        const res = await fetch(`${API_BASE}${CONTACTS_ADD_PATH}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          console.error(
+            `[POST add] ${res.status} ${res.statusText} :: ${text.slice(
+              0,
+              200
+            )}`
+          );
+          alert(`Error ${res.status} al crear.`);
+          return;
+        }
 
-    setShowForm(false);
-    setEditingId(null);
-    setForm(getEmptyForm());
+        let apiItem = null;
+        try {
+          apiItem = text ? JSON.parse(text) : null;
+        } catch {
+          // ignorar por ahora luego agrego 
+        }
+        const created = apiItem?.contact || apiItem?.item || apiItem;
+
+        const newRow = created
+          ? mapFromApiToRow(created)
+          : {
+              id: formatHNIdentity(form.id),
+              nombre: (form.nombre || "").trim(),
+              telefono: normalizePhone(form.telefono),
+              email: (form.email || "").trim(),
+              metodo: mapPreferContactOut(form.metodo),
+              birthDate: form.birthDate || "",
+              gender: form.gender || "",
+            };
+
+        setData((prev) => {
+          const withoutDup = prev.filter((r) => r.id !== newRow.id);
+          return [newRow, ...withoutDup];
+        });
+      }
+
+      await refreshFromServer();
+      setShowForm(false);
+      setEditingId(null);
+      setForm(getEmptyForm());
+    } catch (err) {
+      console.error("handleSave error", err);
+      setErrMsg("No se pudo guardar el contacto.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleEdit(row) {
     setEditingId(row.id);
-    setForm({ ...row, edad: row.edad?.toString() ?? "" });
+    setForm({ ...row, id: row.id });
     setShowForm(true);
   }
 
-  function handleDelete(row) {
-    if (confirm(`¿Eliminar al cliente ${row.nombre}?`)) {
-      setData((prev) => prev.filter((r) => r.id !== row.id));
+  async function handleDelete(row) {
+    const nombre = row?.nombre || "";
+    const dniRaw = toRawDNI(row?.id);
+
+    if (!dniRaw) {
+      alert("No se encontró un DNI válido para este registro.");
+      return;
+    }
+
+    const ok = confirm(`¿Eliminar al cliente ${nombre}?`);
+    if (!ok) return;
+
+    const token = getIdToken();
+    if (!API_BASE || !token) {
+      alert("No hay configuración de API o token.");
+      return;
+    }
+
+    // Optimistic UI
+    const prev = data;
+    setDeletingId(row.id);
+    setData((p) => p.filter((r) => toRawDNI(r.id) !== dniRaw));
+    setErrMsg("");
+
+    try {
+      const res = await fetch(`${API_BASE}${CONTACTS_DELETE_PATH}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ DNI: dniRaw }),
+      });
+
+      const txt = await res.text();
+      if (!res.ok) {
+        console.error(
+          `[DELETE contact] ${res.status} ${res.statusText} :: ${txt.slice(
+            0,
+            200
+          )}`
+        );
+        // rollback
+        setData(prev);
+        alert(`No se pudo eliminar (HTTP ${res.status}).`);
+        return;
+      }
+      await refreshFromServer();
+    } catch (err) {
+      console.error("handleDelete error", err);
+      setData(prev); 
+      setErrMsg("No se pudo eliminar el contacto.");
+      alert("Ocurrió un error eliminando el contacto.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -151,18 +575,182 @@ export default function Clientes() {
     setForm(getEmptyForm());
   }
 
-  // Descargar CSV (tabla filtrada) con BOM
+  // ===== Importación CSV vía S3 + createBatch =====
+  async function handleImportChange(e) {
+    const file = e.target.files?.[0];
+    try {
+      await importCsvToBatch(file);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+ async function importCsvToBatch(file) {
+  if (!file) return;
+  const lower = file.name.toLowerCase();
+  if (!lower.endsWith(".csv")) {
+    alert("Sube un CSV (exporta tu Excel como CSV UTF-8).");
+    return;
+  }
+
+  // Lee y parsea preservando comillas y encabezado original
+  const text = await readFileSmart(file);
+  const { headersRaw, rows } = parseCsvKeepHeader(text);
+
+  if (headersRaw.length === 0) {
+    alert("El CSV está vacío.");
+    return;
+  }
+
+  // Validamos encabezados EXACTOS y en el mismo orden
+  const headerOk =
+    headersRaw.length === TEMPLATE_HEADERS.length &&
+    headersRaw.every((h, i) => stripBOM((h || "").trim()) === TEMPLATE_HEADERS[i]);
+
+  if (!headerOk) {
+    alert(
+      "La plantilla no coincide.\n\nEncabezados esperados (en este orden):\n" +
+        TEMPLATE_HEADERS.join(", ")
+    );
+    return;
+  }
+
+  const token = getIdToken();
+  if (!API_BASE || !token) {
+    alert("No hay configuración de API o token.");
+    return;
+  }
+
+  setImporting(true);
+  setErrMsg("");
+
+  try {
+    // --- RECONSTRUYE CSV LIMPIO, SIN BOM --- //
+    const cleanHeader = TEMPLATE_HEADERS; 
+    const cleanLines = [cleanHeader.join(",")];
+
+    for (const cols of rows) {
+      const [
+        nombre,
+        telefono,
+        email,
+        metodopreferido,
+        genero,
+        DNI,
+        fechadeNacimiento,
+      ] = cols;
+
+      cleanLines.push(
+        [
+          csvEscape(stripBOM(nombre)),
+          csvEscape(String(telefono ?? "").trim()),
+          csvEscape(String(email ?? "").trim()),
+          csvEscape(String(metodopreferido ?? "").trim()),
+          csvEscape(String(genero ?? "").trim()),
+          csvEscape(String(DNI ?? "").replace(/\D/g, "")), // sólo dígitos
+          csvEscape(toIsoDate(fechadeNacimiento ?? "")),   // YYYY-MM-DD
+        ].join(",")
+      );
+    }
+
+    const csvClean = cleanLines.join("\n");
+    const blobClean = new Blob([csvClean], { type: "text/csv;charset=utf-8" });
+
+    // --- Pide URL firmada --- //
+    const folderPath = "uploads/csv"; // <= sin slash final
+    const cleanName = file.name.replace(/\.csv$/i, "") + "-clean.csv";
+
+    const signedRes = await fetch(`${API_BASE}${S3_GET_SIGNED_URL_PATH}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        fileName: cleanName,
+        folderPath,
+        fileType: "csv",
+      }),
+    });
+
+    const signedTxt = await signedRes.text();
+    if (!signedRes.ok) {
+      console.error(
+        `[getSignedUrl] ${signedRes.status} ${signedRes.statusText} :: ${signedTxt.slice(0, 200)}`
+      );
+      alert("No se pudo obtener URL firmada.");
+      return;
+    }
+    const signedJson = signedTxt ? JSON.parse(signedTxt) : {};
+    const uploadURL = signedJson?.body?.uploadURL;
+    const fileURL = signedJson?.body?.fileURL;
+    console.log("Signed URL:", { fileURL });
+    if (!uploadURL || !fileURL) {
+      console.error("Respuesta inválida de getSignedUrl:", signedJson);
+      alert("Respuesta inválida al solicitar URL firmada.");
+      return;
+    }
+
+    // --- Sube a S3 el CSV LIMPIO --- //
+    const putRes = await fetch(uploadURL, {
+      method: "PUT",
+      body: blobClean,
+      headers: {
+        "Content-Type": "text/csv",
+      },
+    });
+    if (!putRes.ok) {
+      const t = await putRes.text();
+      throw new Error(
+        `Error al subir a S3: ${putRes.status} ${putRes.statusText} :: ${t.slice(0, 200)}`
+      );
+    }
+
+    // --- Llama createBatch con la key derivada --- //
+    const key = fileURL; 
+    console.log("S3 file key:", key);
+    const batchRes = await fetch(`${API_BASE}${CONTACTS_CREATE_BATCH_PATH}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ key }),
+    });
+
+    const batchTxt = await batchRes.text();
+    if (!batchRes.ok) {
+      console.error(
+        `[createBatch] ${batchRes.status} ${batchRes.statusText} :: ${batchTxt.slice(0, 200)}`
+      );
+      alert("Error al crear el batch de contactos.");
+      return;
+    }
+
+    alert("Importación iniciada correctamente. Refrescando lista...");
+    await refreshFromServer();
+  } catch (err) {
+    console.error("importCsvToBatch error", err);
+    setErrMsg("Falló la importación CSV.");
+    alert(err.message || "Ocurrió un error importando el CSV.");
+  } finally {
+    setImporting(false);
+  }
+}
+
+
+  // CSV: edad calculada al vuelo
   function downloadCsv() {
-    const rows = filtered; // usa pageRows si prefieres solo la página visible
+    const rows = filtered;
     const header = [
       "ID",
       "Nombre",
       "Teléfono",
       "Email",
       "Método preferido",
-      "Ocupación",
       "Edad",
-      "Dirección",
     ];
     const csv = [
       header.join(","),
@@ -173,142 +761,29 @@ export default function Clientes() {
           safeCsv(r.telefono),
           safeCsv(r.email),
           safeCsv(capitalizar(r.metodo)),
-          safeCsv(r.ocupacion),
-          safeCsv(r.edad),
-          safeCsv(r.direccion),
+          safeCsv(ageFromBirthDate(r.birthDate)),
         ].join(",")
       ),
     ].join("\n");
-
-    // ✅ Con BOM para acentos/ñ
     downloadCsvWithBom(csv, `clientes-${today()}.csv`);
   }
-
-  // ====== 📥 IMPORTACIÓN CSV (alta masiva) ======
-  const TEMPLATE_HEADERS = [
-    "Nombre",
-    "Teléfono",
-    "Email",
-    "Método preferido",
-    "Ocupación",
-    "ID",
-    "Edad",
-    "Dirección",
-  ];
 
   function downloadTemplate() {
     const ejemplo = [
       TEMPLATE_HEADERS.join(","),
       [
-        "Juan Pérez",
-        "+504 9999-1111",
-        "juan@example.com",
+        "Carlos Parra",
+        "+504 9999-99999",
+        "cparra@example.com",
         "WhatsApp",
-        "Productor",
-        "0801-1990-12345",
-        "35",
-        "Col. Las Colinas, Tegucigalpa",
+        "Male",
+        "0801199012345",
+        "1991-05-20",
       ]
         .map(safeCsv)
         .join(","),
     ].join("\n");
-
-    // ✅ Con BOM para acentos/ñ
     downloadCsvWithBom(ejemplo, "plantilla-clientes.csv");
-  }
-
-  async function handleImportCsv(file) {
-    if (!file) return;
-    const text = await file.text();
-
-    const { headers, rows } = parseCsv(text);
-    if (!headers || headers.length === 0) {
-      alert("El CSV no tiene encabezados.");
-      return;
-    }
-
-    const map = mapColumns(headers);
-
-    const required = ["nombre", "id"];
-    for (const key of required) {
-      if (!map[key]) {
-        alert(
-          `Falta la columna requerida: ${requeridaHumana(key)}.\n` +
-            `Encabezados esperados: ${TEMPLATE_HEADERS.join(", ")}`
-        );
-        return;
-      }
-    }
-
-    let ok = 0;
-    const errors = [];
-    const nuevos = [];
-
-    rows.forEach((r, idx) => {
-      const get = (key) => r[map[key] ?? -1] ?? "";
-
-      const nombre = String(get("nombre")).trim();
-      const telefono = String(get("telefono")).trim();
-      const email = String(get("email")).trim();
-      const metodo = (String(get("metodo")).trim() || "whatsapp").toLowerCase();
-      const ocupacion = String(get("ocupacion")).trim();
-      const id = String(get("id")).trim();
-      const edadRaw = String(get("edad")).trim();
-      const direccion = String(get("direccion")).trim();
-
-      if (!nombre) return errors.push(msgErr(idx, "El nombre es obligatorio."));
-      if (!id) return errors.push(msgErr(idx, "La ID es obligatoria."));
-      if (!/^\d{4}-\d{4}-\d{5}$/.test(id))
-        return errors.push(
-          msgErr(idx, `ID inválida: "${id}" (ej: 0801-1998-05788)`)
-        );
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-        return errors.push(msgErr(idx, `Email inválido: "${email}"`));
-      if (!METODOS.includes(metodo))
-        return errors.push(
-          msgErr(
-            idx,
-            `Método preferido inválido: "${get("metodo")}". Usa: ${METODOS.join(
-              ", "
-            )}`
-          )
-        );
-      const edad = edadRaw ? Number(edadRaw) : "";
-      if (edadRaw && (Number.isNaN(edad) || edad < 0 || edad > 120))
-        return errors.push(msgErr(idx, `Edad inválida: "${edadRaw}"`));
-
-      if (nuevos.some((x) => x.id === id) || data.some((x) => x.id === id)) {
-        return errors.push(msgErr(idx, `ID duplicada: "${id}"`));
-      }
-
-      nuevos.push({
-        id,
-        nombre,
-        telefono,
-        email,
-        metodo,
-        ocupacion,
-        edad,
-        direccion,
-      });
-      ok++;
-    });
-
-    if (ok > 0) {
-      setData((prev) => [...nuevos, ...prev]);
-      resetToFirstPage();
-    }
-
-    if (errors.length === 0) {
-      alert(`Importación completada: ${ok} cliente(s) agregado(s).`);
-    } else {
-      const firstErrors = errors.slice(0, 10).join("\n");
-      alert(
-        `Importación: ${ok} agregado(s), ${errors.length} error(es).\n\n` +
-          firstErrors +
-          (errors.length > 10 ? `\n... +${errors.length - 10} errores más` : "")
-      );
-    }
   }
 
   return (
@@ -317,7 +792,26 @@ export default function Clientes() {
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <h1 className="text-lg font-semibold">Clientes</h1>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Nuevo cliente (form individual) */}
+          <button
+            onClick={refreshFromServer}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-100 disabled:opacity-60"
+            title="Refrescar desde el servidor"
+          >
+            {loading ? "Cargando..." : "Refrescar"}
+          </button>
+
+          {lastKeyRef.current && (
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-100 disabled:opacity-60"
+              title="Cargar más contactos"
+            >
+              Cargar más
+            </button>
+          )}
+
           <button
             onClick={() => {
               setEditingId(null);
@@ -330,19 +824,19 @@ export default function Clientes() {
             Nuevo cliente
           </button>
 
-          {/* Importar CSV */}
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-100">
             <IconUpload className="h-4 w-4" />
-            Importar CSV
+            {importing ? "Importando..." : "Importar CSV"}
             <input
+              ref={fileInputRef}
               type="file"
               accept=".csv,text/csv"
               className="hidden"
-              onChange={(e) => handleImportCsv(e.target.files?.[0])}
+              onChange={handleImportChange}
+              disabled={importing}
             />
           </label>
 
-          {/* Descargar plantilla */}
           <button
             onClick={downloadTemplate}
             className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-100"
@@ -352,7 +846,6 @@ export default function Clientes() {
             Plantilla
           </button>
 
-          {/* Descargar datos (tabla filtrada) */}
           <button
             onClick={downloadCsv}
             className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-100"
@@ -363,10 +856,12 @@ export default function Clientes() {
           </button>
         </div>
       </div>
-      <p className="mt-2 text-sm text-gray-600">
-        Descarga la plantilla de ejemplo y úsala para subir varios clientes a la
-        vez.
-      </p>
+
+      {errMsg && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {errMsg}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="grid grid-cols-1 gap-3 rounded-xl border border-neutral-200 bg-white p-3 md:grid-cols-12">
@@ -380,7 +875,7 @@ export default function Clientes() {
                 setQ(e.target.value);
                 resetToFirstPage();
               }}
-              placeholder="Buscar por nombre, email, teléfono"
+              placeholder="Buscar por nombre, email, teléfono o ID"
               className="w-full rounded-lg border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgba(34,128,62,0.25)]"
             />
           </div>
@@ -431,25 +926,23 @@ export default function Clientes() {
 
       {/* Tabla */}
       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
-        <table className="min-w-[1000px] w-full text-left text-sm">
+        <table className="min-w-[900px] w-full text-left text-sm">
           <thead className="bg-neutral-50 text-neutral-600">
             <tr>
               <Th>Nombre</Th>
               <Th>Teléfono</Th>
               <Th>Email</Th>
               <Th>Método</Th>
-              <Th>Ocupación</Th>
               <Th>ID</Th>
               <Th>Edad</Th>
-              <Th>Dirección</Th>
               <Th className="text-right pr-4">Acciones</Th>
             </tr>
           </thead>
           <tbody>
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-6 text-center text-neutral-500">
-                  No hay resultados con los filtros actuales.
+                <td colSpan={7} className="p-6 text-center text-neutral-500">
+                  {loading ? "Cargando..." : "No hay resultados."}
                 </td>
               </tr>
             )}
@@ -462,10 +955,8 @@ export default function Clientes() {
                 <Td>
                   <MetodoBadge metodo={row.metodo} />
                 </Td>
-                <Td>{row.ocupacion}</Td>
                 <Td className="font-mono">{row.id}</Td>
-                <Td>{row.edad}</Td>
-                <Td className="truncate">{row.direccion}</Td>
+                <Td>{ageFromBirthDate(row.birthDate)}</Td>
                 <Td className="pr-4">
                   <div className="flex justify-end gap-2">
                     <button
@@ -478,11 +969,14 @@ export default function Clientes() {
                     </button>
                     <button
                       onClick={() => handleDelete(row)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 text-red-600 hover:bg-red-50"
+                      disabled={deletingId === row.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
                       title="Eliminar"
                     >
                       <IconTrash className="h-4 w-4" />
-                      <span className="hidden sm:inline">Eliminar</span>
+                      <span className="hidden sm:inline">
+                        {deletingId === row.id ? "Eliminando..." : "Eliminar"}
+                      </span>
                     </button>
                   </div>
                 </Td>
@@ -544,7 +1038,7 @@ export default function Clientes() {
                 placeholder="Nombre completo"
               />
               <TextField
-                label="Teléfono"
+                label="Teléfono *"
                 value={form.telefono}
                 onChange={(v) => setForm((f) => ({ ...f, telefono: v }))}
                 placeholder="+504 9xxx-xxxx"
@@ -562,30 +1056,24 @@ export default function Clientes() {
                 options={METODOS}
               />
               <TextField
-                label="Ocupación"
-                value={form.ocupacion}
-                onChange={(v) => setForm((f) => ({ ...f, ocupacion: v }))}
-                placeholder="Profesión / Cargo"
-              />
-              <TextField
-                label="ID (Honduras) *"
+                label="ID*"
                 value={form.id}
                 onChange={(v) => setForm((f) => ({ ...f, id: v }))}
                 placeholder="0801-1998-05788"
+                readOnly={!!editingId}
+              />
+              <SelectField
+                label="Género"
+                value={form.gender}
+                onChange={(v) => setForm((f) => ({ ...f, gender: v }))}
+                options={["", ...GENEROS]}
               />
               <TextField
-                label="Edad"
-                type="number"
-                value={form.edad}
-                onChange={(v) => setForm((f) => ({ ...f, edad: v }))}
-                placeholder="Ej. 32"
-              />
-              <TextField
-                className="md:col-span-2"
-                label="Dirección"
-                value={form.direccion}
-                onChange={(v) => setForm((f) => ({ ...f, direccion: v }))}
-                placeholder="Dirección completa"
+                label="Fecha de nacimiento"
+                type="date"
+                value={form.birthDate}
+                onChange={(v) => setForm((f) => ({ ...f, birthDate: v }))}
+                placeholder="YYYY-MM-DD"
               />
             </div>
 
@@ -606,7 +1094,8 @@ export default function Clientes() {
             </div>
 
             <p className="mt-3 text-xs text-neutral-500">
-              * Campos obligatorios. Formato de ID: <code>0801-AAAA-NNNNN</code>
+              * El DNI/ID no es editable en este formulario. Para cambiarlo,
+              elimina el cliente y crea uno nuevo.
             </p>
           </form>
         </div>
@@ -647,6 +1136,54 @@ function MetodoBadge({ metodo }) {
     </span>
   );
 }
+// --- Helpers para limpiar CSV y normalizar campos --- //
+function stripBOM(s = "") {
+  return String(s || "").replace(/^\uFEFF/, "");
+}
+
+function csvEscape(v) {
+  const s = (v ?? "").toString();
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+// Normaliza a YYYY-MM-DD. Acepta "YYYY-MM-DD", "M/D/YY", "D/M/YY", "M-D-YYYY", etc.
+function toIsoDate(input) {
+  if (!input) return "";
+  const t = String(input).trim();
+
+  // ya viene ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
+  // separador / o -
+  const m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (!m) return t;
+
+  let a = parseInt(m[1], 10);
+  let b = parseInt(m[2], 10);
+  let y = m[3];
+
+  // Año a 4 dígitos
+  if (y.length === 2) {
+    const yy = parseInt(y, 10);
+    y = (yy > 30 ? 1900 + yy : 2000 + yy).toString();
+  }
+
+  // Heurística: si el primer número > 12, asumimos D/M/Y; si el segundo > 12, asumimos M/D/Y
+  // Si ambos <= 12, asumimos M/D/Y (estilo Excel US)
+  let month = a, day = b;
+  if (a > 12 && b <= 31) {
+    day = a; month = b;
+  } else if (b > 12 && a <= 12) {
+    month = a; day = b;
+  }
+
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${y}-${mm}-${dd}`;
+}
+
+
+// Inputs
 function TextField({
   label,
   value,
@@ -654,6 +1191,8 @@ function TextField({
   placeholder,
   type = "text",
   className = "",
+  disabled = false,
+  readOnly = false,
 }) {
   return (
     <label className={cnField("block", className)}>
@@ -663,7 +1202,13 @@ function TextField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgba(34,128,62,0.25)]"
+        disabled={disabled}
+        readOnly={readOnly}
+        className={`w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgba(34,128,62,0.25)]
+          ${
+            disabled ? "bg-neutral-100 text-neutral-500 cursor-not-allowed" : ""
+          }
+          ${readOnly ? "bg-neutral-50" : ""}`}
       />
     </label>
   );
@@ -679,7 +1224,7 @@ function SelectField({ label, value, onChange, options, className = "" }) {
       >
         {options.map((o) => (
           <option key={o} value={o}>
-            {capitalizar(o)}
+            {o ? o : "—"}
           </option>
         ))}
       </select>
@@ -694,8 +1239,6 @@ function cnField(...classes) {
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
-
-// Descarga CSV con UTF-8 BOM para que Excel/Sheets respeten acentos/ñ
 function downloadCsvWithBom(csvString, filename) {
   const BOM = "\uFEFF";
   const blob = new Blob([BOM, csvString], { type: "text/csv;charset=utf-8;" });
@@ -706,83 +1249,9 @@ function downloadCsvWithBom(csvString, filename) {
   a.click();
   URL.revokeObjectURL(url);
 }
-
 function safeCsv(value) {
   const v = value ?? "";
   return `"${String(v).replace(/"/g, '""')}"`;
-}
-
-function normalizeHeader(s) {
-  return String(s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-// Mapea encabezados del CSV a llaves internas
-function mapColumns(headers) {
-  const h = headers.map(normalizeHeader);
-  const idx = (aliases) => {
-    for (const a of aliases) {
-      const i = h.indexOf(a);
-      if (i !== -1) return i;
-    }
-    return undefined;
-  };
-  return {
-    nombre: idx(["nombre"]),
-    telefono: idx(["telefono", "teléfono"]),
-    email: idx(["email", "correo"]),
-    metodo: idx(["metodo preferido", "metodo", "método preferido", "método"]),
-    ocupacion: idx(["ocupacion", "ocupación"]),
-    id: idx(["id", "identidad", "dni"]),
-    edad: idx(["edad"]),
-    direccion: idx(["direccion", "dirección"]),
-  };
-}
-function requeridaHumana(key) {
-  const map = { nombre: "Nombre", id: "ID" };
-  return map[key] || key;
-}
-function msgErr(idx, text) {
-  return `Fila ${idx + 2}: ${text}`; // +1 encabezado +1 base 1
-}
-function parseCsv(text) {
-  // Soporta comillas y comas dentro de comillas. Delimitador coma.
-  const lines = text
-    .replace(/\r/g, "")
-    .split("\n")
-    .filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return { headers: [], rows: [] };
-
-  const parseLine = (line) => {
-    const out = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          cur += '"';
-          i++; // escapado
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === "," && !inQuotes) {
-        out.push(cur);
-        cur = "";
-      } else {
-        cur += ch;
-      }
-    }
-    out.push(cur);
-    return out;
-  };
-
-  const headers = parseLine(lines[0]).map((h) => h.trim());
-  const rows = lines.slice(1).map(parseLine);
-  return { headers, rows };
 }
 function capitalizar(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;

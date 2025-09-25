@@ -1,5 +1,4 @@
-// src/components/admin/pages/Cotizaciones.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   IconPlus,
   IconSearch,
@@ -14,8 +13,6 @@ import {
 const BRAND = "rgb(34,128,62)";
 const METODOS = ["whatsapp", "email", "llamada"];
 const SERVICIOS = ["Transporte", "Fumigación", "Riego", "Mantenimiento", "Asesoría"];
-
-// --- Mock data (reemplaza con tu fetch a la API) ---
 const MOCK = [
   {
     id: "Q-2025-001",
@@ -64,6 +61,10 @@ const MOCK = [
   },
 ];
 
+// ====== API base y endpoint ======
+const API_BASE = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, ""); // ej: http://127.0.0.1:3000/dev/mencas
+const QUOTES_PATH = "/adminQuotes/getPage?limit=200";
+
 export default function Cotizaciones() {
   const [data, setData] = useState(MOCK);
   const [q, setQ] = useState("");
@@ -72,7 +73,117 @@ export default function Cotizaciones() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
 
-  // Filtro + búsqueda
+  // ===== Carga inicial desde API =====
+  useEffect(() => {
+    fetchQuotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchQuotes() {
+    if (!API_BASE) {
+      console.warn("[Cotizaciones] VITE_API_URL vacío; usando MOCK.");
+      return;
+    }
+    const url = `${API_BASE}${QUOTES_PATH}`;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      const text = await res.text();
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+      if (!res.ok) {
+        console.error(`[Cotizaciones] HTTP ${res.status} ${res.statusText} CT=${ct} Preview=${text.slice(0, 120)}`);
+        return; 
+      }
+      if (!ct.includes("application/json")) {
+        console.error(`[Cotizaciones] Esperaba JSON pero CT=${ct} Preview=${text.slice(0, 120)}`);
+        return; 
+      }
+
+      const json = JSON.parse(text);
+      // Estructura: { message, quotes: { items: [...], nextPageToken }, lastEvaluatedKey }
+      const items = json?.quotes?.items ?? [];
+      const normalized = items.map(mapQuoteToRow).filter(Boolean);
+
+      if (normalized.length) {
+        setData(normalized);
+        setPage(1);
+      } else {
+        console.warn("[Cotizaciones] API respondió sin items. Mantengo MOCK.");
+      }
+    } catch (err) {
+      console.error("[Cotizaciones] Error al cargar:", err);
+      // Mantiene MOCK para no vaciar UI
+    }
+  }
+
+  // ====== Mapper: API → shape de tabla (como MOCK) ======
+  function mapQuoteToRow(it) {
+    if (!it) return null;
+
+    const snap = it.contactSnapshot || {};
+    const fullName = (snap.fullName || "").trim();
+    const cellphone = (snap.cellphone || "").trim();
+    const email = (snap.email || "").trim();
+    const metodo = normalizeMethod(snap.preferContact); // "whatsapp" | "email" | "llamada"
+
+    // ID legible a partir de type "QUOTE#<uuid>"
+    const rawType = String(it.type || "");
+    const id =
+      rawType.includes("#")
+        ? `Q-${rawType.split("#")[1].slice(0, 8).toUpperCase()}`
+        : `Q-${(snap.DNI || "XXXX").slice(-4)}-${(it.searchDate || "").slice(2, 4)}`;
+
+    // Servicio amigable desde serviceData (vehículo / viaje / genérico)
+    const servicio = guessServiceLabel(it.serviceData);
+
+    return {
+      id,
+      cliente: fullName || "—",
+      telefono: cellphone || "—",
+      email: email || "—",
+      metodo,
+      servicio: servicio || "—",
+      pdfUrl: null, // backend aún no entrega PDF
+    };
+  }
+
+  function normalizeMethod(m) {
+    if (!m) return "whatsapp";
+    const s = String(m).toLowerCase();
+    if (s.includes("whatsapp")) return "whatsapp";
+    if (s.includes("email")) return "email";
+    if (s.includes("llamada") || s.includes("phone") || s.includes("call")) return "llamada";
+    return "whatsapp";
+  }
+
+  function guessServiceLabel(sd) {
+    if (!sd || typeof sd !== "object") return "";
+    // Viaje
+    if ("tripType" in sd || "destinations" in sd) {
+      const tt = sd.tripType ? ` (${capitalize(sd.tripType)})` : "";
+      return `Seguro de Viaje${tt}`;
+    }
+    // Vehículo
+    if ("vehicleBrand" in sd || "vehicleModel" in sd || "vehicleYear" in sd) {
+      return "Seguro de Vehículo";
+    }
+    // Vida/Personas (heurística por estructura de titular/pareja)
+    if ("titular" in sd || "pareja" in sd) {
+      return "Seguro de Personas";
+    }
+    // Fallback: intenta desde searchKey
+    return "";
+  }
+
+  function capitalize(s) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+
+  // ===== Filtro + búsqueda =====
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return data.filter((row) => {
@@ -121,7 +232,7 @@ export default function Cotizaciones() {
         ? `Enviar correo a ${row.email}`
         : `Realizar llamada a ${row.telefono}`;
     alert(`Cotización ${row.id}: ${mensaje}\nPDF adjunto: ${row.pdfName || "archivo.pdf"}`);
-    // backend para enviar realmente según el método
+    // integrar backend para enviar realmente
   }
 
   return (
@@ -130,10 +241,17 @@ export default function Cotizaciones() {
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <h1 className="text-lg font-semibold">Cotizaciones</h1>
         <div className="flex items-center gap-2">
-          <button className="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,128,62)] px-3 py-2 text-sm font-medium text-white hover:opacity-90">
+          <button
+            onClick={fetchQuotes}
+            className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium hover:bg-neutral-100"
+            title="Refrescar desde el servidor"
+          >
+            Refrescar
+          </button>
+          {/* <button className="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,128,62)] px-3 py-2 text-sm font-medium text-white hover:opacity-90">
             <IconPlus className="h-4 w-4" />
             Nueva cotización
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -252,7 +370,7 @@ export default function Cotizaciones() {
                 <Td>{row.servicio}</Td>
                 <Td className="pr-4">
                   <div className="flex justify-end gap-2">
-                    {/* Subir PDF (input oculto por fila) */}
+                    {/* Subir PDF */}
                     <div>
                       <input
                         id={`pdf-${row.id}`}

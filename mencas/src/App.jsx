@@ -1,4 +1,3 @@
-// src/App.jsx
 import React from "react";
 import { Routes, Route, Outlet } from "react-router-dom";
 
@@ -27,6 +26,8 @@ import Dashboard from "./components/admin/pages/Dashboard";
 import Cotizaciones from "./components/admin/pages/Cotizaciones";
 import Clientes from "./components/admin/pages/Clientes";
 import PrivateRoute from "./components/PrivateRoute"; 
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Scroll reset
 import ScrollToTop from "./components/ui/ScrollToTop";
@@ -48,6 +49,7 @@ function PublicLayout() {
       <Navbar />
       <Outlet />
       <Footer />
+      <ToastContainer position="top-right" autoClose={3000} />
     </main>
   );
 }

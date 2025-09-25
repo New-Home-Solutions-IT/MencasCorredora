@@ -1,4 +1,3 @@
-// src/components/Alliances.jsx
 import React from "react";
 import davivienda from "../assets/alliances/daviviendaSeguros.png";
 import grupoEPS from "../assets/alliances/grupoEPS.png";

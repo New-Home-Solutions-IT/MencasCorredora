@@ -1,4 +1,3 @@
-// src/components/PrivateRoute.jsx
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 function isExpired(exp, skewSeconds = 30) {
@@ -26,7 +25,7 @@ export default function PrivateRoute() {
     storage.removeItem("accessToken");
     storage.removeItem("idToken");
     storage.removeItem("tokenExp");
-    // refreshToken lo dejamos para que el helper lo use, si abres otra vista
+    // refreshToken lo dejamos para que el helper lo use
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 

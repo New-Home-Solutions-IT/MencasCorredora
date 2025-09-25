@@ -7,7 +7,7 @@ const SIDE_IMAGE = "/historiaMencas.png";
 const BRAND = "rgb(34,128,62)";
 const API_BASE = import.meta.env.VITE_API_URL;
 
-// Utilidad: decodifica un JWT (solo payload) para extraer exp, email.
+// decodifica un JWT
 function decodeJwtPayload(token) {
   try {
     const [, payload] = token.split(".");
@@ -73,8 +73,7 @@ export default function Login() {
         );
       }
 
-      // ---------- 🔐 Primer inicio de sesión ----------
-      // Ajusta estas condiciones a la bandera exacta de tu backend
+      // ---------- Primer inicio de sesión ----------
       const isFirstLogin =
         data?.mustChangePassword === true ||
         data?.requiresPasswordChange === true ||
@@ -96,7 +95,7 @@ export default function Login() {
         return; // no sigas con el flujo normal
       }
 
-      // ---------- ✅ Flujo normal: guardar tokens y entrar ----------
+      // ---------- Flujo normal: guardar tokens y entrar ----------
       const { AccessToken, IdToken, RefreshToken } = data;
 
       if (!AccessToken || !IdToken) {

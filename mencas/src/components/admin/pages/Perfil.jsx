@@ -67,18 +67,6 @@ export default function Perfil() {
 
     try {
       setPwdBusy(true);
-
-      // =======================
-      // 🔗 Integración Cognito:
-      // Ejemplo (Amplify):
-      // import { Auth } from "aws-amplify";
-      // await Auth.changePassword(await Auth.currentAuthenticatedUser(), pwd.current, pwd.next);
-      //
-      // Ejemplo (amazon-cognito-identity-js):
-      // cognitoUser.changePassword(pwd.current, pwd.next, (err, result) => { ... })
-      // =======================
-
-      // Simulación de éxito:
       await new Promise((r) => setTimeout(r, 600));
       setPwd({ current: "", next: "", confirm: "", showCurrent: false, showNext: false, showConfirm: false });
       alert("Contraseña actualizada.");

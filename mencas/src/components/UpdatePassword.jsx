@@ -1,4 +1,3 @@
-// src/components/UpdatePassword.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Lock } from "lucide-react";
@@ -118,11 +117,9 @@ export default function UpdatePassword() {
       let email = (form.email || "").trim();
       const current = (form.currentPassword || "").trim();
       const next = (form.newPassword || "").trim();
-
-      // ⚠️ Si tu backend espera el email en minúsculas, descomenta:
       // email = email.toLowerCase();
 
-      // 1) Verificar contraseña ACTUAL intentando login
+      // Verificar contraseña ACTUAL intentando login
       const verifyBody = JSON.stringify({ user: email, password: current });
       console.debug("[VERIFY LOGIN] body:", verifyBody);
 
@@ -141,11 +138,11 @@ export default function UpdatePassword() {
       console.debug("[VERIFY LOGIN] raw:", verifyText);
       console.debug("[VERIFY LOGIN] parsed:", verifyData);
 
-      // Criterios de validez ampliados
+      //
       const validCurrent =
         verifyRes.ok &&
         (
-          verifyData?.passwordReset === true || // reto de cambio (contraseña válida)
+          verifyData?.passwordReset === true || 
           !!verifyData?.AccessToken ||
           !!verifyData?.IdToken ||
           verifyData?.authenticated === true ||
@@ -158,7 +155,7 @@ export default function UpdatePassword() {
         throw new Error(backendMsg || "La contraseña actual no es válida.");
       }
 
-      // 2) Establecer NUEVA contraseña
+      // Establecer NUEVA contraseña
       const headers = { "Content-Type": "application/json" };
       if (accessToken && !isExpired(exp)) headers["Authorization"] = `Bearer ${accessToken}`;
 
@@ -182,7 +179,7 @@ export default function UpdatePassword() {
         throw new Error(backendMsg);
       }
 
-      setServerMsg("Contraseña actualizada correctamente ✅ Redirigiendo…");
+      setServerMsg("Contraseña actualizada correctamente Redirigiendo…");
       setTimeout(() => navigate("/login", { replace: true }), 1200);
     } catch (error) {
       setServerMsg(error?.message || "No se pudo actualizar la contraseña.");

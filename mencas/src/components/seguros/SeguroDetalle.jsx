@@ -1,4 +1,3 @@
-// src/components/seguros/SeguroDetalle.jsx
 import React, { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -25,14 +24,12 @@ import {
   IconBeach,
   IconUsersGroup,
 } from "@tabler/icons-react";
-
 import seguroAuto from "../../assets/autormb.png";
 import seguroMedico from "../../assets/medicormb.png";
 import seguroPropiedad from "../../assets/SeguroPropiedadMencasrmb.png";
 import seguroVida from "../../assets/vidarmb.png";
 import seguroViaje from "../../assets/viajermb.png";
 import seguroMencasTeAsiste from "../../assets/asistenciarmb.png";
-
 import toyota from "../../assets/marcas/toyota.png";
 import ford from "../../assets/marcas/ford.png";
 import honda from "../../assets/marcas/honda.jpeg";
@@ -53,6 +50,7 @@ import lexus from "../../assets/marcas/lexus.png";
 import audi from "../../assets/marcas/audi.png";
 import bmw from "../../assets/marcas/bmw.png";
 import mercedes from "../../assets/marcas/mercedes.png";
+import { toast } from "react-toastify";
 
 const BRAND = "rgb(34,128,62)";
 
@@ -200,6 +198,7 @@ const channelChips = [
 ];
 
 // ===== Vehículos: catálogos =====
+// eslint-disable-next-line react-refresh/only-export-components
 export const VEHICULO_MARCAS = [
   { label: "Toyota", logo: toyota },
   { label: "Ford", logo: ford },
@@ -448,7 +447,6 @@ const VEHICULO_MODELOS = {
     "Sprinter",
   ],
 };
-
 // Propiedad
 const PROPIEDAD_TIPOS = [
   { key: "casa", label: "Casa", Icon: IconHome },
@@ -510,7 +508,272 @@ const VIAJE_TIPOS = [
   { key: "familiar", label: "Familiar", Icon: IconUsersGroup },
 ];
 //Códigos ISO 3166-1 alpha-2 - Codigos de país
-const ISO2_COUNTRY_CODES = ["AF","AX","AL","DZ","AS","AD","AO","AI","AQ","AG","AR","AM","AW","AU","AT","AZ","BS","BH","BD","BB","BY","BE","BZ","BJ","BM","BT","BO","BQ","BA","BW","BV","BR","IO","BN","BG","BF","BI","CV","KH","CM","CA","KY","CF","TD","CL","CN","CX","CC","CO","KM","CG","CD","CK","CR","CI","HR","CU","CW","CY","CZ","DK","DJ","DM","DO","EC","EG","SV","GQ","ER","EE","SZ","ET","FK","FO","FJ","FI","FR","GF","PF","TF","GA","GM","GE","DE","GH","GI","GR","GL","GD","GP","GU","GT","GG","GN","GW","GY","HT","HM","VA","HN","HK","HU","IS","IN","ID","IR","IQ","IE","IM","IL","IT","JM","JP","JE","JO","KZ","KE","KI","KP","KR","KW","KG","LA","LV","LB","LS","LR","LY","LI","LT","LU","MO","MG","MW","MY","MV","ML","MT","MH","MQ","MR","MU","YT","MX","FM","MD","MC","MN","ME","MS","MA","MZ","MM","NA","NR","NP","NL","NC","NZ","NI","NE","NG","NU","NF","MK","MP","NO","OM","PK","PW","PS","PA","PG","PY","PE","PH","PN","PL","PT","PR","QA","RE","RO","RU","RW","BL","SH","KN","LC","MF","PM","VC","WS","SM","ST","SA","SN","RS","SC","SL","SG","SX","SK","SI","SB","SO","ZA","GS","SS","ES","LK","SD","SR","SJ","SE","CH","SY","TW","TJ","TZ","TH","TL","TG","TK","TO","TT","TN","TR","TM","TC","TV","UG","UA","AE","GB","US","UM","UY","UZ","VU","VE","VN","VG","VI","WF","EH","YE","ZM","ZW"];
+const ISO2_COUNTRY_CODES = [
+  "AF",
+  "AX",
+  "AL",
+  "DZ",
+  "AS",
+  "AD",
+  "AO",
+  "AI",
+  "AQ",
+  "AG",
+  "AR",
+  "AM",
+  "AW",
+  "AU",
+  "AT",
+  "AZ",
+  "BS",
+  "BH",
+  "BD",
+  "BB",
+  "BY",
+  "BE",
+  "BZ",
+  "BJ",
+  "BM",
+  "BT",
+  "BO",
+  "BQ",
+  "BA",
+  "BW",
+  "BV",
+  "BR",
+  "IO",
+  "BN",
+  "BG",
+  "BF",
+  "BI",
+  "CV",
+  "KH",
+  "CM",
+  "CA",
+  "KY",
+  "CF",
+  "TD",
+  "CL",
+  "CN",
+  "CX",
+  "CC",
+  "CO",
+  "KM",
+  "CG",
+  "CD",
+  "CK",
+  "CR",
+  "CI",
+  "HR",
+  "CU",
+  "CW",
+  "CY",
+  "CZ",
+  "DK",
+  "DJ",
+  "DM",
+  "DO",
+  "EC",
+  "EG",
+  "SV",
+  "GQ",
+  "ER",
+  "EE",
+  "SZ",
+  "ET",
+  "FK",
+  "FO",
+  "FJ",
+  "FI",
+  "FR",
+  "GF",
+  "PF",
+  "TF",
+  "GA",
+  "GM",
+  "GE",
+  "DE",
+  "GH",
+  "GI",
+  "GR",
+  "GL",
+  "GD",
+  "GP",
+  "GU",
+  "GT",
+  "GG",
+  "GN",
+  "GW",
+  "GY",
+  "HT",
+  "HM",
+  "VA",
+  "HN",
+  "HK",
+  "HU",
+  "IS",
+  "IN",
+  "ID",
+  "IR",
+  "IQ",
+  "IE",
+  "IM",
+  "IL",
+  "IT",
+  "JM",
+  "JP",
+  "JE",
+  "JO",
+  "KZ",
+  "KE",
+  "KI",
+  "KP",
+  "KR",
+  "KW",
+  "KG",
+  "LA",
+  "LV",
+  "LB",
+  "LS",
+  "LR",
+  "LY",
+  "LI",
+  "LT",
+  "LU",
+  "MO",
+  "MG",
+  "MW",
+  "MY",
+  "MV",
+  "ML",
+  "MT",
+  "MH",
+  "MQ",
+  "MR",
+  "MU",
+  "YT",
+  "MX",
+  "FM",
+  "MD",
+  "MC",
+  "MN",
+  "ME",
+  "MS",
+  "MA",
+  "MZ",
+  "MM",
+  "NA",
+  "NR",
+  "NP",
+  "NL",
+  "NC",
+  "NZ",
+  "NI",
+  "NE",
+  "NG",
+  "NU",
+  "NF",
+  "MK",
+  "MP",
+  "NO",
+  "OM",
+  "PK",
+  "PW",
+  "PS",
+  "PA",
+  "PG",
+  "PY",
+  "PE",
+  "PH",
+  "PN",
+  "PL",
+  "PT",
+  "PR",
+  "QA",
+  "RE",
+  "RO",
+  "RU",
+  "RW",
+  "BL",
+  "SH",
+  "KN",
+  "LC",
+  "MF",
+  "PM",
+  "VC",
+  "WS",
+  "SM",
+  "ST",
+  "SA",
+  "SN",
+  "RS",
+  "SC",
+  "SL",
+  "SG",
+  "SX",
+  "SK",
+  "SI",
+  "SB",
+  "SO",
+  "ZA",
+  "GS",
+  "SS",
+  "ES",
+  "LK",
+  "SD",
+  "SR",
+  "SJ",
+  "SE",
+  "CH",
+  "SY",
+  "TW",
+  "TJ",
+  "TZ",
+  "TH",
+  "TL",
+  "TG",
+  "TK",
+  "TO",
+  "TT",
+  "TN",
+  "TR",
+  "TM",
+  "TC",
+  "TV",
+  "UG",
+  "UA",
+  "AE",
+  "GB",
+  "US",
+  "UM",
+  "UY",
+  "UZ",
+  "VU",
+  "VE",
+  "VN",
+  "VG",
+  "VI",
+  "WF",
+  "EH",
+  "YE",
+  "ZM",
+  "ZW",
+];
+
+const BASE_URL = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, "");
+const CONTACTS_URL = BASE_URL
+  ? `${BASE_URL}/contacts/add`
+  : "/contacts/add";
+const QUOTES_URL = BASE_URL
+  ? `${BASE_URL}/createQuotes/add`
+  : "/createQuotes/add";
+// Formatea DD/MM/AAAA a YYYY-MM-DD
+function formatDOB(d, m, y) {
+  if (!d || !m || !y) return "";
+  const dd = String(d).padStart(2, "0");
+  const mm = String(m).padStart(2, "0");
+  return `${y}-${mm}-${dd}`;
+}
 
 // Genera la lista en español con Intl.DisplayNames.
 // Si Intl.DisplayNames no existe, caemos a un fallback corto.
@@ -656,8 +919,8 @@ export default function SeguroDetalle() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const conf = useMemo(() => SEGUROS[slug], [slug]);
-
   const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
 
   // Paso 1
   const [vehiculo, setVehiculo] = useState({
@@ -727,7 +990,24 @@ export default function SeguroDetalle() {
     telefono: "",
     email: "",
     canal: "whatsapp",
+    dni: "",
+    birthDate: "",
   });
+  // DOB desde paso 1 cuando sea "medico"
+  React.useEffect(() => {
+    if (slug !== "medico") return;
+    const dob = formatDOB(medico.dia, medico.mes, medico.anio);
+    if (dob)
+      setPersonal((p) => (p.birthDate === dob ? p : { ...p, birthDate: dob }));
+  }, [slug, medico.dia, medico.mes, medico.anio]);
+
+  // "vida"
+  React.useEffect(() => {
+    if (slug !== "vida") return;
+    const dob = formatDOB(vida.dia, vida.mes, vida.anio);
+    if (dob)
+      setPersonal((p) => (p.birthDate === dob ? p : { ...p, birthDate: dob }));
+  }, [slug, vida.dia, vida.mes, vida.anio]);
 
   if (!conf) {
     return (
@@ -742,7 +1022,6 @@ export default function SeguroDetalle() {
       </div>
     );
   }
-
   // Validaciones
   function validateStep1() {
     switch (slug) {
@@ -873,13 +1152,20 @@ export default function SeguroDetalle() {
     }
     return null;
   }
-
   function validateStep2() {
     if (!personal.nombre.trim()) return "El nombre es obligatorio.";
     if (!/^\+?\d[\d\s\-()]{6,}$/.test(personal.telefono.trim()))
       return "Teléfono inválido.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personal.email.trim()))
       return "Email inválido.";
+    if (!personal.dni.trim()) return "El DNI/identidad es obligatorio.";
+
+    const necesitaDOB = slug !== "medico" && slug !== "vida";
+    if (necesitaDOB && !personal.birthDate)
+      return "La fecha de nacimiento es obligatoria.";
+    if (personal.birthDate && isNaN(Date.parse(personal.birthDate)))
+      return "La fecha de nacimiento no es válida (usa YYYY-MM-DD).";
+
     return null;
   }
 
@@ -900,7 +1186,7 @@ export default function SeguroDetalle() {
     if (!dd || !mm || !yy) return false;
 
     const dob = new Date(yy, mm - 1, dd);
-    // fecha real (no 31/02, etc.)
+    // fecha real
     const isRealDate =
       dob.getFullYear() === yy &&
       dob.getMonth() === mm - 1 &&
@@ -916,40 +1202,258 @@ export default function SeguroDetalle() {
     return dob <= adultCutoff;
   }
 
+  function serviceTypeFromSlug(slug) {
+    switch (slug) {
+      case "vehiculo":
+        return "AUTO";
+      case "medico":
+        return "MEDICAL";
+      case "propiedad":
+        return "PROPERTY";
+      case "viaje":
+        return "TRAVEL";
+      case "asistencia":
+        return "ASSIST";
+      case "vida":
+        return "LIFE";
+      default:
+        return "OTHER";
+    }
+  }
+
+  // Normaliza numéricos
+  const numOrNull = (v) => {
+    const n = Number(String(v).replace(/[^\d.]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  //bloque "details" según el seguro
+  function buildDetails() {
+    switch (slug) {
+      case "vehiculo": {
+        return {
+          vehicleBrand: vehiculo.marca || null,
+          vehicleModel: vehiculo.modelo || null,
+          vehicleYear: vehiculo.anio ? Number(vehiculo.anio) : null,
+          vehicleType: vehiculo.tipo || null,
+          use: vehiculo.uso || null,
+          condition: vehiculo.estado || null,
+          marketValue: numOrNull(vehiculo.valor),
+          invoiceValue: null,
+        };
+      }
+      case "medico": {
+        const titularDOB =
+          medico.dia && medico.mes && medico.anio
+            ? `${medico.anio}-${String(medico.mes).padStart(2, "0")}-${String(
+                medico.dia
+              ).padStart(2, "0")}`
+            : null;
+        const parejaDOB =
+          medico.parejaDia && medico.parejaMes && medico.parejaAnio
+            ? `${medico.parejaAnio}-${String(medico.parejaMes).padStart(
+                2,
+                "0"
+              )}-${String(medico.parejaDia).padStart(2, "0")}`
+            : null;
+
+        return {
+          titular: {
+            birthDate: titularDOB,
+            gender: medico.genero || null,
+          },
+          pareja:
+            medico.parejaAsegurar === "Si"
+              ? {
+                  insure: true,
+                  birthDate: parejaDOB,
+                  gender: medico.parejaGenero || null,
+                  haveChildren: medico.tieneHijos || null,
+                  childrenCount:
+                    medico.tieneHijos === "Si"
+                      ? Number(medico.hijosCantidad || 0)
+                      : 0,
+                }
+              : { insure: false },
+        };
+      }
+      case "propiedad": {
+        return {
+          propertyType: propiedad.tipo || null,
+          department: propiedad.departamento || null,
+          city: propiedad.ciudad || null,
+          address: propiedad.direccion || null,
+          material:
+            propiedad.material === "Otro" && propiedad.materialOtro
+              ? `Otro (${propiedad.materialOtro})`
+              : propiedad.material || null,
+          use: propiedad.uso || null,
+          propertyValue: numOrNull(propiedad.valorPropiedad),
+          contentsValue: numOrNull(propiedad.valorMenaje),
+        };
+      }
+      case "viaje": {
+        return {
+          destinations:
+            Array.isArray(viaje.destinos) && viaje.destinos.length
+              ? viaje.destinos.map((d) => ({ code: d.code, name: d.name }))
+              : viaje.destino
+              ? [{ code: null, name: viaje.destino }]
+              : [],
+          departure: viaje.salida || null,
+          return: viaje.regreso || null,
+          people: Number(viaje.personas || 1),
+          tripType: viaje.tipo || null,
+        };
+      }
+      case "asistencia": {
+        return {
+          migrant: {
+            fullName: asistencia.nombre || null,
+            residenceCountry: asistencia.pais || null,
+            idNumber: asistencia.identificacion || null,
+            address: asistencia.direccion || null,
+            phone: asistencia.telefono || null,
+            occupation: asistencia.ocupacion || null,
+            contactHN: asistencia.contactoHonduras || null,
+          },
+        };
+      }
+      case "vida": {
+        const dob =
+          vida.dia && vida.mes && vida.anio
+            ? `${vida.anio}-${String(vida.mes).padStart(2, "0")}-${String(
+                vida.dia
+              ).padStart(2, "0")}`
+            : null;
+
+        return {
+          birthDate: dob,
+          gender: vida.genero || null,
+          sumAssured: numOrNull(vida.valorAsegurar),
+          profession:
+            vida.profesion === "Otro" && vida.profesionOtro
+              ? `Otro (${vida.profesionOtro})`
+              : vida.profesion || null,
+        };
+      }
+      default:
+        return {};
+    }
+  }
+  // Envía la cotización al backend primero creando el contacto, luego la cotización
+  async function submitQuote() {
+    try {
+      const err1 = validateStep1();
+      if (err1) {
+        toast.warn(err1);
+        setStep(1);
+        return;
+      }
+      const err2 = validateStep2();
+      if (err2) {
+        toast.warn(err2);
+        setStep(2);
+        return;
+      }
+
+      setSubmitting(true);
+
+      // 1) Crear CONTACTO
+      const contactPayload = {
+        recordType: "PROFILE",
+        fullName: personal.nombre,
+        DNI: personal.dni,
+        gender:
+          slug === "medico"
+            ? medico.genero || null
+            : slug === "vida"
+            ? vida.genero || null
+            : null,
+        birthDate:
+          slug === "medico"
+            ? formatDOB(medico.dia, medico.mes, medico.anio) || null
+            : slug === "vida"
+            ? formatDOB(vida.dia, vida.mes, vida.anio) || null
+            : personal.birthDate || null,
+        cellphone: personal.telefono,
+        email: personal.email,
+        preferContact:
+          personal.canal === "whatsapp"
+            ? "WhatsApp"
+            : personal.canal === "llamada"
+            ? "llamada"
+            : "email",
+        enabled: true,
+        updatedAt: new Date().toISOString(),
+        searchDate: new Date().toISOString(),
+      };
+
+      const contactRes = await fetch(CONTACTS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(contactPayload),
+      });
+
+      if (!contactRes.ok) {
+        const text = await contactRes.text().catch(() => "");
+        throw new Error(
+          text || `Error al crear contacto (${contactRes.status})`
+        );
+      }
+      // const contactData = await contactRes.json().catch(() => ({}));
+      toast.success("Contacto creado con éxito");
+
+      // 2 COTIZACIÓN
+      const quotePayload = {
+        recordType: "QUOTE",
+        serviceType: serviceTypeFromSlug(slug),
+        details: buildDetails(),
+        contactSnapshot: {
+          DNI: contactPayload.DNI || "",
+          fullName: personal.nombre,
+          email: personal.email,
+          cellphone: personal.telefono,
+          preferContact:
+            personal.canal === "whatsapp"
+              ? "WhatsApp"
+              : personal.canal === "llamada"
+              ? "Phone"
+              : "Email",
+        },
+        status: "PENDING",
+        createdAt: new Date().toISOString(),
+      };
+
+      const quoteRes = await fetch(QUOTES_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(quotePayload),
+      });
+
+      if (!quoteRes.ok) {
+        const text = await quoteRes.text().catch(() => "");
+        throw new Error(
+          text || `Error al crear cotización (${quoteRes.status})`
+        );
+      }
+
+      const quoteData = await quoteRes.json().catch(() => ({}));
+      // leer quoteData.quoteSnapshot.quoteId
+      toast.success("¡Cotización creada correctamente!");
+
+      // Redirección suave
+      setTimeout(() => navigate("/"), 1200);
+    } catch (e) {
+      console.error(e);
+      toast.error(e.message || "No pudimos completar tu solicitud.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="w-full bg-white">
-      {/* HERO */}
-      {/* <section
-        className="relative h-[48vh] min-h-[360px] w-full overflow-hidden"
-        style={{
-          backgroundImage: `url(${conf.heroImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/30 to-transparent" />
-        <div className="relative z-10 max-w-6xl mx-auto h-full flex items=end md:items-end items-center p-6 md:p-10">
-          <div className="text-white">
-            <h1 className="text-3xl md:text-5xl font-bold drop-shadow">
-              {conf.title}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm md:text-base opacity-90">
-              {conf.heroText}
-            </p>
-            <button
-              onClick={() =>
-                document
-                  .getElementById("wizard")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-              className="mt-4 inline-flex items-center rounded-md bg-[rgb(34,128,62)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-            >
-              Quiero cotizar
-            </button>
-          </div>
-        </div>
-      </section> */}
       <section className="overflow-hidden relative h-[60vh] min-h-[420px] bg-gradient-to-r from-emerald-700 to-emerald-500 text-white flex items-center pt-20">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between p-10">
           {/* Texto */}
@@ -1050,6 +1554,29 @@ export default function SeguroDetalle() {
                 onChange={(v) => setPersonal((p) => ({ ...p, email: v }))}
                 placeholder="tu@correo.com"
               />
+              <Field
+                label="DNI / Identidad *"
+                value={personal.dni}
+                onChange={(v) => setPersonal((p) => ({ ...p, dni: v }))}
+                placeholder="0801xxxxxxxx"
+              />
+
+              {/* DOB: si es vida/medico, se muestra readonly; si no, input date */}
+              {slug === "medico" || slug === "vida" ? (
+                <ReadOnly
+                  label="Fecha de nacimiento"
+                  value={personal.birthDate || "—"}
+                />
+              ) : (
+                <Field
+                  label="Fecha de nacimiento *"
+                  type="date"
+                  value={personal.birthDate}
+                  onChange={(v) => setPersonal((p) => ({ ...p, birthDate: v }))}
+                  placeholder="YYYY-MM-DD"
+                />
+              )}
+              <div className="hidden md:block" />
             </div>
 
             <div className="mt-4">
@@ -1256,13 +1783,15 @@ export default function SeguroDetalle() {
                 Atrás
               </button>
               <button
-                onClick={() =>
-                  alert("¡Solicitud enviada! Te contactaremos pronto.")
-                }
-                className="inline-flex items-center gap-2 rounded-lg bg-[rgb(34,128,62)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                onClick={submitQuote}
+                disabled={submitting}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 ${
+                  submitting ? "opacity-60 cursor-not-allowed" : ""
+                }`}
+                style={{ backgroundColor: BRAND }}
               >
                 <IconSend className="h-4 w-4" />
-                Enviar solicitud
+                {submitting ? "Enviando…" : "Enviar solicitud"}
               </button>
             </div>
           </div>
@@ -1879,7 +2408,7 @@ function ViajeStep({ viaje, setViaje }) {
         })}
       </div>
 
-      {/* Tipo de viaje (se mantiene lo que ya tenías) */}
+      {/* Tipo de viaje */}
       <h3 className="mt-8 mb-3 text-center text-lg font-semibold text-cyan-800">
         Tipo de viaje
       </h3>
@@ -2103,45 +2632,61 @@ function Stepper({ step }) {
     { n: 2, label: "Personal" },
     { n: 3, label: "Resultado" },
   ];
+
   return (
-    <div className="flex items-center justify-center gap-6">
-      {items.map((it, idx) => {
-        const active = step >= it.n;
-        const current = step === it.n;
-        return (
-          <div key={it.n} className="flex items-center gap-3">
-            <span
-              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold
-                ${
+    <div
+      className="w-full overflow-x-auto px-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-label="Progreso de cotización"
+    >
+      <div className="mx-auto flex items-center justify-between gap-3 sm:gap-6 min-w-[320px]">
+        {items.map((it, idx) => {
+          const active = step >= it.n;
+          const current = step === it.n;
+
+          return (
+            <div key={it.n} className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* círculo */}
+              <span
+                className={[
+                  "flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full text-xs sm:text-sm font-bold",
                   current
                     ? "bg-cyan-700 text-white"
                     : active
                     ? "bg-cyan-600 text-white"
-                    : "bg-cyan-100 text-cyan-700"
-                }`}
-            >
-              {it.n}
-            </span>
-            <span
-              className={`text-base font-semibold ${
-                active ? "text-cyan-700" : "text-neutral-500"
-              }`}
-            >
-              {it.label}
-            </span>
-            {idx < items.length - 1 && (
+                    : "bg-cyan-100 text-cyan-700",
+                ].join(" ")}
+                aria-current={current ? "step" : undefined}
+              >
+                {it.n}
+              </span>
+
+              {/* label (solo en sm+) */}
               <span
-                className={`mx-2 h-px w-24 ${
-                  active && step > it.n ? "bg-cyan-600" : "bg-neutral-200"
-                }`}
-              />
-            )}
-          </div>
-        );
-      })}
+                className={[
+                  "hidden sm:inline text-sm font-semibold",
+                  active ? "text-cyan-700" : "text-neutral-500",
+                ].join(" ")}
+              >
+                {it.label}
+              </span>
+
+              {/* conector */}
+              {idx < items.length - 1 && (
+                <span
+                  className={[
+                    "mx-1 sm:mx-2 h-px w-10 sm:w-24 block",
+                    active && step > it.n ? "bg-cyan-600" : "bg-neutral-200",
+                  ].join(" ")}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
+
 
 function Field({ label, value, onChange, placeholder, type = "text" }) {
   return (

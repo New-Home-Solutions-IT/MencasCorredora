@@ -138,7 +138,7 @@ export default function AdminShell() {
 }
 
 function NavItem({ to, label, Icon, open, onNavigate }) {
-  const isRootAdmin = to === "/admin"; // exact para el dashboard
+  const isRootAdmin = to === "/admin"; 
   return (
     <NavLink
       to={to}
@@ -162,11 +162,15 @@ function NavItem({ to, label, Icon, open, onNavigate }) {
 }
 
 const Logo = () => (
-  <a href="#" className="relative z-20 flex items-center space-x-2 py-1 text-sm font-semibold text-neutral-900">
+  <a
+    href="/"
+    className="relative z-20 flex items-center space-x-2 py-1 text-sm font-semibold text-neutral-900"
+  >
     <img src={logoIcon} alt="Logo" className="h-6 w-6 shrink-0 rounded" />
     <span className="whitespace-pre">MENCAS ADMIN</span>
   </a>
 );
+
 
 const LogoIcon = () => (
   <a href="#" className="relative z-20 flex items-center space-x-2 py-1 text-sm text-neutral-900">

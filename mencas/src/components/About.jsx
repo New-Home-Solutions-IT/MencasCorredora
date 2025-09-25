@@ -41,7 +41,7 @@ const timelineData = [
 export default function About() {
   return (
     <section id="nosotros" className="w-full bg-white">
-      {/* 🔹 Imagen Aboout */}
+      {/* Imagen Aboout */}
       <div
         className="relative w-full h-72 md:h-[35rem] bg-cover bg-center"
         style={{ backgroundImage: `url(${aboutHero})` }}
@@ -60,7 +60,7 @@ export default function About() {
         </div>
       </div>
 
-      {/* 🔹 Contenido */}
+      {/* Contenido */}
       <div className="max-w-7xl mx-auto py-20 px-6 md:px-12 lg:px-16">
         {/* Intro */}
         <motion.p
