@@ -25,21 +25,58 @@ const SERVICIOS = [
 const API_BASE = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, "");
 const QUOTES_PAGE_PATH = "/adminQuotes/getPage?limit=200";
 const QUOTE_BY_ID_PATH = "/adminQuotes/getById"; // GET ?type=...&contactDni=...
-const S3_SIGNED_URL_PATH = "/s3_uploads/getSignedUrl"; 
+const S3_SIGNED_URL_PATH = "/s3_uploads/getSignedUrl";
+const QUOTES_EDIT_PATH = "/adminQuotes/edit";
+const QUOTES_SEND_PATH = "/adminQuotes/send";
 
 // Token helper
+function getToken() {
+  // Busca varias claves comunes y elimina "Bearer " si viene incluido
+  if (typeof window !== "undefined") {
+    const keys = [
+      "IdToken",
+      "idToken",
+      "token",
+      "access_token",
+      "accessToken",
+      "Authorization",
+    ];
+    for (const k of keys) {
+      const raw = localStorage.getItem(k);
+      console.log("localStorage key:", k, "value:", raw);
+      if (raw && raw.trim()) {
+        return raw.replace(/^Bearer\s+/i, "");
+      }
+    }
+  }
+  return import.meta.env?.VITE_API_TOKEN || "";
+}
+
 function getAuthHeaders(extra = {}) {
-  //token desde localStorage o env
-  const token =
-    (typeof window !== "undefined" && localStorage.getItem("token")) ||
-    import.meta.env?.VITE_API_TOKEN ||
-    "";
-  const headers = {
+  const token = getToken();
+  return {
     Accept: "application/json",
     Authorization: token ? `Bearer ${token}` : "",
     ...extra,
   };
-  return headers;
+}
+// Normaliza el canal para la API
+function mapPreferForAPI(prefer) {
+  const p = String(prefer || "").toLowerCase();
+  if (p === "llamada") return "phone";
+  if (p === "whatsapp") return "whatsapp";
+  if (p === "email") return "email";
+  return "email";
+}
+function buildContactSnapshot(row, item, dni, prefer) {
+  return {
+    ...(item?.contactSnapshot || {}),
+    fullName: row.cliente ?? item?.contactSnapshot?.fullName,
+    cellphone: row.telefono ?? item?.contactSnapshot?.cellphone,
+    preferContact: prefer,
+    DNI: dni,
+    email: row.email ?? item?.contactSnapshot?.email,
+  };
 }
 
 export default function Cotizaciones() {
@@ -50,6 +87,199 @@ export default function Cotizaciones() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
   const [loading, setLoading] = useState(false);
+
+  //modal para detalles de cotizacion
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [details, setDetails] = useState(null);
+  function toServiceTypeEnum(raw) {
+    const s = String(raw || "")
+      .trim()
+      .toUpperCase();
+    const map = {
+      "SEGURO DE VIDA": "LIFE",
+      VIDA: "LIFE",
+      LIFE: "LIFE",
+      "SEGURO MÉDICO": "MEDICAL",
+      MEDICO: "MEDICAL",
+      MÉDICO: "MEDICAL",
+      MEDICAL: "MEDICAL",
+      "SEGURO DE VEHÍCULO": "AUTO",
+      VEHICULO: "AUTO",
+      VEHÍCULO: "AUTO",
+      AUTO: "AUTO",
+      "SEGURO DE PROPIEDAD": "PROPERTY",
+      PROPIEDAD: "PROPERTY",
+      PROPERTY: "PROPERTY",
+      "SEGURO DE VIAJE": "TRAVEL",
+      VIAJE: "TRAVEL",
+      TRAVEL: "TRAVEL",
+      "REPATRIACIÓN Y ASISTENCIA": "ASSIST",
+      REPATRIACION: "ASSIST",
+      ASSIST: "ASSIST",
+      OTRO: "OTHER",
+      OTHER: "OTHER",
+    };
+    return map[s] || "OTHER";
+  }
+
+  async function openDetails(row) {
+    try {
+      setDetailsOpen(true);
+      setDetailsLoading(true);
+      const url = `${API_BASE}${QUOTE_BY_ID_PATH}?type=${encodeURIComponent(
+        row.typeKey
+      )}&contactDni=${encodeURIComponent(row.dni)}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: getAuthHeaders(),
+      });
+      const txt = await res.text();
+      if (!res.ok) throw new Error(txt.slice(0, 500));
+      const json = txt ? JSON.parse(txt) : {};
+      const item = extractQuoteFromGetById(json);
+      const serviceType = toServiceTypeEnum(
+        item?.serviceType || item?.service || row?.servicio
+      );
+
+      setDetails({
+        ...item,
+        serviceType,
+        type:
+          item?.type ||
+          row?.typeFull ||
+          (row?.typeKey ? `QUOTE#${row.typeKey}` : ""),
+        contactSnapshot: item?.contactSnapshot || {},
+        serviceData: item?.serviceData || item?.details || {},
+        pdfUrl: item?.pdfUrl || row?.pdfUrl || null,
+        status: (item?.status || row?.status || "").toUpperCase(),
+      });
+    } catch (e) {
+      console.error("[openDetails] ", e);
+      setDetails(null);
+    } finally {
+      setDetailsLoading(false);
+    }
+  }
+
+  function Field({ label, value }) {
+    return (
+      <div className="grid grid-cols-3 gap-3 py-1">
+        <div className="text-xs text-neutral-500">{label}</div>
+        <div className="col-span-2 text-sm">
+          <Value value={value} />
+        </div>
+      </div>
+    );
+  }
+
+  function renderServiceData(sd = {}, st = "OTHER") {
+    if (!sd || typeof sd !== "object") return <p className="text-sm">—</p>;
+
+    if (st === "AUTO") {
+      const m = {
+        vehicleBrand: "Marca",
+        vehicleModel: "Modelo",
+        vehicleYear: "Año",
+        invoiceValue: "Valor factura",
+        marketValue: "Valor mercado",
+      };
+      return (
+        <div>
+          {Object.entries(m).map(([k, label]) => (
+            <Field key={k} label={label} value={sd[k]} />
+          ))}
+          {/* Renderiza cualquier otro campo adicional que venga en sd */}
+          {Object.keys(sd)
+            .filter((k) => !(k in m))
+            .map((k) => (
+              <Field key={k} label={humanizeKey(k)} value={sd[k]} />
+            ))}
+        </div>
+      );
+    }
+
+    if (st === "LIFE") {
+      const m = {
+        sumAssured: "Suma asegurada",
+        profession: "Profesión",
+        gender: "Género",
+        birthDate: "Fecha de nacimiento",
+        titular: "Titular", // <- puede ser objeto
+        pareja: "Pareja", // <- puede ser objeto
+      };
+      return (
+        <div>
+          {Object.entries(m).map(([k, label]) => (
+            <Field key={k} label={label} value={sd[k]} />
+          ))}
+          {Object.keys(sd)
+            .filter((k) => !(k in m))
+            .map((k) => (
+              <Field key={k} label={humanizeKey(k)} value={sd[k]} />
+            ))}
+        </div>
+      );
+    }
+
+    // Fallback genérico para otros servicios
+    return (
+      <div>
+        {Object.entries(sd).map(([k, v]) => (
+          <Field key={k} label={humanizeKey(k)} value={v} />
+        ))}
+      </div>
+    );
+  }
+
+  // Extrae el objeto quote del GET /getById
+  function humanizeKey(k = "") {
+    return k
+      .replace(/_/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function isEmptyValue(v) {
+    if (v == null || v === "") return true;
+    if (Array.isArray(v)) return v.length === 0;
+    if (typeof v === "object") return Object.keys(v).length === 0;
+    return false;
+  }
+
+  // Renderiza cualquier valor (string, number, array u objeto anidado)
+  function Value({ value, depth = 0 }) {
+    if (isEmptyValue(value)) return <span>—</span>;
+
+    if (Array.isArray(value)) {
+      return (
+        <span>
+          {value
+            .map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x)))
+            .join(", ")}
+        </span>
+      );
+    }
+
+    if (typeof value === "object") {
+      return (
+        <div className={depth === 0 ? "space-y-1" : "ml-3 space-y-1"}>
+          {Object.entries(value).map(([k, v]) => (
+            <div key={k} className="grid grid-cols-3 gap-2">
+              <div className="text-xs text-neutral-500">{humanizeKey(k)}</div>
+              <div className="col-span-2 text-sm">
+                <Value value={v} depth={depth + 1} />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // string/number/bool
+    return <span>{String(value)}</span>;
+  }
+  //termnina modal de cotizacion aqui
 
   useEffect(() => {
     fetchQuotes();
@@ -76,10 +306,9 @@ export default function Cotizaciones() {
 
       if (!res.ok || !ct.includes("application/json")) {
         console.error(
-          `[Cotizaciones] Respuesta inválida: ${res.status} CT=${ct} Preview=${text.slice(
-            0,
-            120
-          )}`
+          `[Cotizaciones] Respuesta inválida: ${
+            res.status
+          } CT=${ct} Preview=${text.slice(0, 120)}`
         );
         setData([]);
         setPage(1);
@@ -111,38 +340,41 @@ export default function Cotizaciones() {
     const cellphone = (snap.cellphone || "").trim();
     const email = (snap.email || "").trim();
     const metodo = normalizeMethod(snap.preferContact);
-
-    const rawType = String(it.type || ""); // ej. "QUOTE#e2d9b1..."
-    const typeKey = rawType.startsWith("QUOTE#") ? rawType.slice(6) : rawType; // sin "QUOTE#"
+    const raw = String(it.type || it.quoteId || it.id || "");
+    const hasPrefix = raw.startsWith("QUOTE#");
+    const typeKey = hasPrefix ? raw.slice(6) : raw; // sin "QUOTE#"
+    const typeFull = hasPrefix ? raw : typeKey ? `QUOTE#${typeKey}` : ""; // con "QUOTE#"
 
     // Servicio
     const servicio =
-      serviceLabelFromAPI(it) || guessServiceLabel(it.serviceData || it.details) || "—";
+      serviceLabelFromAPI(it) ||
+      guessServiceLabel(it.serviceData || it.details) ||
+      "—";
+
     // Estado
     const apiStatus = (it.status || "").toString().trim().toUpperCase();
-    const hasPdf = Boolean(it.pdfUrl);
-    let status =
+    const hasPdf = Boolean(it.pdfUrl || it.fileKey);
+    const status =
       apiStatus === "SENT"
         ? "SENT"
         : hasPdf || apiStatus === "READY"
         ? "READY"
         : "PENDING";
 
-    // ID legible
-    const id = rawType.includes("#")
-      ? `Q-${rawType.split("#")[1].slice(0, 8).toUpperCase()}`
-      : undefined;
+    // ID 
+    const id = typeKey ? `Q-${typeKey.slice(0, 8).toUpperCase()}` : undefined;
 
     return {
       id,
-      typeKey, // adminQuotes/getById
-      dni,     // adminQuotes/getById y para folderPath
+      typeKey, // para GET getById
+      typeFull, // para PUT edit
+      dni,
       cliente: fullName || "—",
       telefono: cellphone || "—",
       email: email || "—",
       metodo,
       servicio,
-      status, // "PENDING" | "READY" | "SENT"
+      status,
       pdfUrl: it.pdfUrl || null,
       pdfFile: null,
       pdfName: null,
@@ -160,7 +392,10 @@ export default function Cotizaciones() {
   }
 
   function serviceLabelFromAPI(it) {
-    const raw = (it?.serviceType || it?.service || "").toString().trim().toUpperCase();
+    const raw = (it?.serviceType || it?.service || "")
+      .toString()
+      .trim()
+      .toUpperCase();
     const map = {
       LIFE: "Seguro de Vida",
       MEDICAL: "Seguro Médico",
@@ -182,7 +417,9 @@ export default function Cotizaciones() {
   function guessServiceLabel(sd) {
     if (!sd || typeof sd !== "object") return "";
     if ("tripType" in sd || "destinations" in sd) {
-      return `Seguro de Viaje${sd.tripType ? ` (${capitalize(sd.tripType)})` : ""}`;
+      return `Seguro de Viaje${
+        sd.tripType ? ` (${capitalize(sd.tripType)})` : ""
+      }`;
     }
     if ("vehicleBrand" in sd || "vehicleModel" in sd || "vehicleYear" in sd) {
       return "Seguro de Vehículo";
@@ -231,137 +468,267 @@ export default function Cotizaciones() {
     setPage(1);
   }
 
-  // ===== Subida de PDF con Signed URL =====
-function cleanFileName(name = "") {
-  const base = name.normalize("NFKD").replace(/[^\w.\- ]+/g, "");
-  return base.replace(/\s+/g, "_").slice(0, 180) || `archivo_${Date.now()}.pdf`;
-}
+  async function updateQuoteOnServer(row, updates) {
+    if (!API_BASE) throw new Error("API_BASE no configurado.");
 
-// ===== Subida de PDF con Signed URL (usamos ID en folderPath(nombre)) =====
-async function handleUploadPdf(row, file) {
-  if (!file) return;
+    const dni = row?.dni || "";
+    const typeFull =
+      row?.typeFull || (row?.typeKey ? `QUOTE#${row.typeKey}` : "");
+    console.log("row", row, "updates", updates);
+    if (!dni)
+      throw new Error("updateQuoteOnServer: faltó contactDni (row.dni)");
+    if (!typeFull)
+      throw new Error("updateQuoteOnServer: faltó type (con 'QUOTE#')");
+    if (!updates || typeof updates !== "object")
+      throw new Error("updateQuoteOnServer: faltó updates");
 
-  const typeKey = row?.typeKey || ""; // <- type sin "QUOTE#"
-  const dni = row?.dni || "";       // <- DNI del contacto para el path
-  if (!API_BASE) {
-    alert("No hay API_BASE configurado.");
-    return;
-  }
-  if (!typeKey) {
-    alert("No se encontró el typeKey (type sin QUOTE#) para el folderPath.");
-    return;
-  }
+    const url = `${API_BASE}${QUOTES_EDIT_PATH}`;
+    const body = { contactDni: dni, type: typeFull, updates };
 
-  try {
-    const token =
-      (typeof window !== "undefined" && localStorage.getItem("token")) ||
-      import.meta.env?.VITE_API_TOKEN ||
-      "";
+    console.log("[updateQuoteOnServer] PUT", url, "payload:", body);
 
-    const folderPath = `uploads/quote/${dni}`;
-    const cleanName = cleanFileName(file.name);
-
-    // 1) Pide URL firmada
-    const signedRes = await fetch(`${API_BASE}${S3_SIGNED_URL_PATH}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-      body: JSON.stringify({
-        fileName: cleanName,
-        folderPath,
-        fileType: "pdf",
-      }),
-    });
-    console.log("[getSignedUrl] status:", signedRes.status, signedRes.statusText);
-    console.log("[signedRes] ", signedRes);
-
-    const signedTxt = await signedRes.text();
-    if (!signedRes.ok) {
-      console.error(
-        `[getSignedUrl] ${signedRes.status} ${signedRes.statusText} :: ${signedTxt.slice(0, 200)}`
-      );
-      alert("No se pudo obtener URL firmada.");
-      return;
-    }
-    const signedJson = signedTxt ? JSON.parse(signedTxt) : {};
-    const uploadURL = signedJson?.body?.uploadURL;
-    const fileURL   = signedJson?.body?.fileURL;
-    if (!uploadURL || !fileURL) {
-      console.error("Respuesta inválida de getSignedUrl:", signedJson);
-      alert("Respuesta inválida al solicitar URL firmada.");
-      return;
-    }
-
-    // Sube al bucket 
-    const putRes = await fetch(uploadURL, {
+    const res = await fetch(url, {
       method: "PUT",
-      headers: { "Content-Type": "application/pdf" },
-      body: file,
+      headers: getAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
     });
-    if (!putRes.ok) {
-      const t = await putRes.text().catch(() => "");
-      throw new Error(`PUT a S3 falló (${putRes.status}): ${t.slice(0, 180)}`);
+
+    const txt = await res.text();
+    console.log(
+      "[updateQuoteOnServer] status:",
+      res.status,
+      res.statusText,
+      "raw:",
+      txt
+    );
+
+    if (!res.ok) throw new Error(`edit ${res.status}: ${txt.slice(0, 500)}`);
+
+    try {
+      return txt ? JSON.parse(txt) : {};
+    } catch {
+      return { raw: txt };
+    }
+  }
+
+  // ===== Subida de PDF con Signed URL =====
+
+  function buildFileKeyForEdit({ dni, typeFull }) {
+    return `uploads/quote/${dni}/${typeFull}.pdf`;
+  }
+
+  async function handleUploadPdf(row, file) {
+    if (!file) return;
+    if (!API_BASE) return alert("No hay API_BASE configurado.");
+
+    const dni = row?.dni || "";
+    const typeKey = row?.typeKey || "";
+    const typeFull = row?.typeFull || (typeKey ? `QUOTE#${typeKey}` : "");
+
+    if (!dni || !typeKey || !typeFull) {
+      return alert("Faltan datos para subir PDF (dni/typeKey/typeFull).");
     }
 
-    // 3) Actualiza UI
-    setData(prev =>
-      prev.map(r =>
-        r.typeKey === row.typeKey
-          ? {
-              ...r,
-              pdfFile: file,
-              pdfName: cleanName,
-              pdfUrl: fileURL,            
-              status: r.status === "SENT" ? "SENT" : "READY",
-            }
-          : r
-      )
-    );
-  } catch (e) {
-    console.error("[Upload PDF] ", e);
-    alert(`Falló la subida de PDF: ${e.message}`);
+    try {
+      // Carpeta destino en el bucket
+      const folderPath = `uploads/quote/${dni}`;
+      // Nombre EXACTO del objeto
+      const desiredFileName = `${typeFull}.pdf`;
+
+      // 1) Obtener URL firmada
+      const signedRes = await fetch(`${API_BASE}${S3_SIGNED_URL_PATH}`, {
+        method: "POST",
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          fileName: desiredFileName,
+          folderPath,
+          fileType: "pdf",
+        }),
+      });
+
+      const signedTxt = await signedRes.text();
+      if (!signedRes.ok) {
+        console.error(
+          "[getSignedUrl] fail:",
+          signedRes.status,
+          signedRes.statusText,
+          signedTxt
+        );
+        return alert("No se pudo obtener URL firmada.");
+      }
+      const signedJson = signedTxt ? JSON.parse(signedTxt) : {};
+      const uploadURL = signedJson?.body?.uploadURL;
+      const fileURL = signedJson?.body?.fileURL; // URL pública
+      const fileKey = buildFileKeyForEdit({ dni, typeFull }); // => uploads/quote/<dni>/QUOTE#...pdf
+
+      if (!uploadURL) {
+        console.error("Respuesta inválida de getSignedUrl:", signedJson);
+        return alert("Respuesta inválida al solicitar URL firmada.");
+      }
+
+      // 2) Subir a S3
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": "application/pdf" },
+        body: file,
+      });
+      if (!putRes.ok) {
+        const t = await putRes.text().catch(() => "");
+        throw new Error(
+          `PUT a S3 falló (${putRes.status}): ${t.slice(0, 180)}`
+        );
+      }
+
+      // 3) Persistir estado READY con fileKey EXACTO
+      console.log("[Upload PDF] fileKey (KEY en bucket):", fileKey);
+      console.log("[Upload PDF] fileURL (URL para UI):", fileURL);
+
+      await updateQuoteOnServer(
+        { ...row, typeFull },
+        { status: "READY", fileKey }
+      );
+
+      // 4) UI
+      setData((prev) =>
+        prev.map((r) =>
+          r.typeKey === typeKey
+            ? {
+                ...r,
+                pdfFile: file,
+                pdfName: desiredFileName,
+                pdfUrl: fileURL,
+                status: "READY",
+                typeFull,
+              }
+            : r
+        )
+      );
+    } catch (e) {
+      console.error("[Upload PDF] ", e);
+      alert(`Falló la subida de PDF: ${e.message}`);
+    }
   }
-}
 
   // ===== Enviar cotización =====
   async function handleSend(row) {
     if (!row.pdfFile && !row.pdfUrl) {
-      alert(`La cotización ${row.id || ""} no tiene PDF cargado. Súbelo antes de enviar.`);
-      return;
+      return alert(
+        `La cotización ${
+          row.id || ""
+        } no tiene PDF cargado. Súbelo antes de enviar.`
+      );
     }
-    if (!API_BASE) {
-      alert("No hay API_BASE configurado.");
-      return;
-    }
-    if (!row.typeKey || !row.dni) {
-      alert("Faltan datos para enviar (type o DNI).");
-      return;
+    if (!API_BASE) return alert("No hay API_BASE configurado.");
+
+    const dni = row?.dni || "";
+    const typeKey = row?.typeKey || "";
+    const typeFull = row?.typeFull || (typeKey ? `QUOTE#${typeKey}` : "");
+    if (!dni || !typeKey) {
+      return alert("Faltan datos para enviar (type o DNI).");
     }
 
-    const url = new URL(`${API_BASE}${QUOTE_BY_ID_PATH}`, window.location.origin);
-    // Parámetros
-    const finalUrl = `${API_BASE}${QUOTE_BY_ID_PATH}?type=${encodeURIComponent(
-      row.typeKey
-    )}&contactDni=${encodeURIComponent(row.dni)}`;
+    const token = getToken();
+    if (!token)
+      return alert("No hay token de autenticación. Inicia sesión de nuevo.");
 
     try {
-      const res = await fetch(finalUrl, {
+      // 1) Traer item completo
+      const getUrl = `${API_BASE}${QUOTE_BY_ID_PATH}?type=${encodeURIComponent(
+        typeKey
+      )}&contactDni=${encodeURIComponent(dni)}`;
+
+      const getRes = await fetch(getUrl, {
         method: "GET",
         headers: getAuthHeaders(),
       });
+      const getTxt = await getRes.text();
+      if (!getRes.ok)
+        throw new Error(`getById ${getRes.status}: ${getTxt.slice(0, 500)}`);
 
-      const text = await res.text();
-      if (!res.ok) {
-        throw new Error(
-          `GET getById falló (${res.status}): ${text.slice(0, 180)}`
+      const getJson = getTxt ? JSON.parse(getTxt) : {};
+      const item = extractQuoteFromGetById(getJson);
+      if (!item)
+        throw new Error("No se pudo interpretar la respuesta de getById.");
+
+      // 2) Preparar payload EXACTO
+      const preferUi = (
+        row.metodo ||
+        item?.contactSnapshot?.preferContact ||
+        "email"
+      ).toLowerCase();
+      const prefer = preferUi === "llamada" ? "phone" : preferUi;
+      const contactKey = `CONTACT#${dni}`;
+      // usa la misma función que en /edit
+      const fileKey = buildFileKeyForEdit({ dni, typeFull });
+
+      const payload = {
+        serviceData: item.serviceData || item.details || {},
+        status: item.status || "READY",
+        fileKey, // KEY relativa (no URL)
+        ttl: item.ttl || Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
+        contactSnapshot: {
+          ...(item.contactSnapshot || {}),
+          fullName: row.cliente ?? item?.contactSnapshot?.fullName,
+          cellphone: row.telefono ?? item?.contactSnapshot?.cellphone,
+          preferContact: prefer, // "whatsapp" | "email" | "phone"
+          DNI: dni,
+          email: row.email ?? item?.contactSnapshot?.email,
+        },
+        serviceType: (item.serviceType || item.service || "")
+          .toString()
+          .toUpperCase(),
+        "contact#dni": contactKey,
+        fileUploadedAt: item.fileUploadedAt || new Date().toISOString(),
+        searchKey:
+          item.searchKey || `${row.cliente} | ${row.status} | ${row.servicio}`,
+        searchDate: item.searchDate || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        recordType: "QUOTE",
+        type: typeFull,
+      };
+
+      console.log("[/adminQuotes/send] FINAL PAYLOAD:", payload);
+
+      // 3) POST /adminQuotes/send (sin preferContact/contactDni root ni quoteSnapshot)
+      const sendRes = await fetch(`${API_BASE}${QUOTES_SEND_PATH}`, {
+        method: "POST",
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
+      });
+      const sendTxt = await sendRes.text();
+      if (!sendRes.ok) {
+        console.error(
+          "[/adminQuotes/send] status:",
+          sendRes.status,
+          sendRes.statusText,
+          "resp:",
+          sendTxt
         );
+        throw new Error(`send ${sendRes.status}: ${sendTxt.slice(0, 500)}`);
       }
+
+      // 4) Acciones UI según método
+      if (prefer === "whatsapp") {
+        const servicioMsg = serviceNameForMessage(row);
+        const msg = buildWhatsAppMessage({
+          cliente: row.cliente,
+          servicio: servicioMsg,
+        });
+        const wa = buildWhatsAppLink(row.telefono, msg);
+        window.open(wa, "_blank", "noopener,noreferrer");
+      } else if (prefer === "phone") {
+        alert(`Debes llamar al cliente: ${row.telefono}`);
+      }
+      // 5) Persistir estado SENT
+      await updateQuoteOnServer({ ...row, typeFull }, { status: "SENT" });
+
+      // 6) UI
       setData((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, status: "SENT" } : r))
+        prev.map((r) =>
+          r.typeKey === typeKey ? { ...r, status: "SENT", typeFull } : r
+        )
       );
+
       alert("Cotización enviada correctamente.");
     } catch (e) {
       console.error("[Enviar] ", e);
@@ -498,16 +865,40 @@ async function handleUploadPdf(row, file) {
             )}
 
             {pageRows.map((row) => (
-              <tr key={row.id || `${row.email}-${row.telefono}`} className="border-t">
+              <tr
+                key={row.id || `${row.email}-${row.telefono}`}
+                className="border-t"
+              >
                 {/* <Td>{row.id}</Td> */}
-                <Td className="font-medium">{row.cliente}</Td>
+                <Td className="font-medium">
+                  <button
+                    onClick={() => openDetails(row)}
+                    className="underline decoration-dotted underline-offset-2 hover:text-[rgb(34,128,62)]"
+                    title="Ver detalles de la cotización"
+                  >
+                    {row.cliente}
+                  </button>
+                </Td>
                 <Td>{row.telefono}</Td>
                 <Td className="truncate">{row.email}</Td>
-                <Td><MetodoBadge metodo={row.metodo} /></Td>
+                <Td>
+                  <MetodoBadge metodo={row.metodo} />
+                </Td>
                 <Td>{row.servicio}</Td>
-                <Td><EstadoBadge status={row.status} /></Td>
+                <Td>
+                  <EstadoBadge status={row.status} />
+                </Td>
                 <Td className="pr-4">
                   <div className="flex justify-end gap-2">
+                    {/* Detalle de cotizacion */}
+                    <button
+                      onClick={() => openDetails(row)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 hover:bg-neutral-100"
+                      title="Ver detalles"
+                    >
+                      <IconSearch className="h-4 w-4" />
+                      <span className="hidden sm:inline">Detalles</span>
+                    </button>
                     {/* Subir PDF */}
                     <div>
                       <input
@@ -519,24 +910,33 @@ async function handleUploadPdf(row, file) {
                           handleUploadPdf(row, e.target.files?.[0])
                         }
                       />
+
                       <button
                         onClick={() =>
                           document
-                            .getElementById(`pdf-${row.id || `${row.email}-${row.telefono}`}`)
+                            .getElementById(
+                              `pdf-${row.id || `${row.email}-${row.telefono}`}`
+                            )
                             ?.click()
                         }
                         className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 hover:bg-neutral-100"
                         title={
-                          row.pdfFile
-                            ? `PDF subido: ${row.pdfName}`
+                          row.pdfFile || row.pdfUrl
+                            ? `PDF subido: ${
+                                row.pdfName || "Archivo existente"
+                              }`
                             : "Subir PDF"
                         }
                       >
                         <IconFileTypePdf className="h-4 w-4" />
                         <span className="hidden sm:inline">
-                          {row.pdfFile ? "Reemplazar PDF" : "Subir PDF"}
+                          {row.pdfFile || row.pdfUrl || row.status === "READY"
+                            ? "Reemplazar PDF"
+                            : "Subir PDF"}
                         </span>
-                        {row.pdfFile && (
+                        {(row.pdfFile ||
+                          row.pdfUrl ||
+                          row.status === "READY") && (
                           <IconCheck className="h-4 w-4 text-[rgb(34,128,62)]" />
                         )}
                       </button>
@@ -578,7 +978,8 @@ async function handleUploadPdf(row, file) {
             Anterior
           </button>
           <span className="text-sm">
-            Página <strong>{currentPage}</strong> de <strong>{totalPages}</strong>
+            Página <strong>{currentPage}</strong> de{" "}
+            <strong>{totalPages}</strong>
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -590,13 +991,127 @@ async function handleUploadPdf(row, file) {
           </button>
         </div>
       </div>
+      {/* Modal detalles de cotizacion */}
+      {detailsOpen && (
+        <div
+          className="fixed inset-0 z-50"
+          aria-modal="true"
+          role="dialog"
+          onKeyDown={(e) => e.key === "Escape" && setDetailsOpen(false)}
+        >
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setDetailsOpen(false)}
+          />
+          <div className="relative mx-auto mt-16 w-[min(760px,92vw)] rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b p-4">
+              <h3 className="text-base font-semibold">
+                Detalle de cotización{" "}
+                {/* {details?.type?.replace("QUOTE#", "") || ""} */}
+              </h3>
+              <button
+                onClick={() => setDetailsOpen(false)}
+                className="rounded-full p-1 hover:bg-neutral-100"
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-4">
+              {detailsLoading && <p className="text-sm">Cargando…</p>}
+
+              {!detailsLoading && details && (
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Contacto */}
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold text-neutral-700">
+                      Contacto
+                    </h4>
+                    <Field
+                      label="Nombre"
+                      value={details.contactSnapshot?.fullName}
+                    />
+                    <Field label="DNI" value={details.contactSnapshot?.DNI} />
+                    <Field
+                      label="Teléfono"
+                      value={details.contactSnapshot?.cellphone}
+                    />
+                    <Field
+                      label="Email"
+                      value={details.contactSnapshot?.email}
+                    />
+                    <Field
+                      label="Preferencia"
+                      value={details.contactSnapshot?.preferContact}
+                    />
+                  </div>
+
+                  {/* Estado / Archivo */}
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold text-neutral-700">
+                      Estado
+                    </h4>
+                    <Field label="Status" value={details.status} />
+                    <Field label="ServiceType" value={details.serviceType} />
+                    <Field
+                      label="Archivo"
+                      value={details.fileKey || details?.pdfUrl ? "PDF" : "—"}
+                    />
+                    {details?.pdfUrl && (
+                      <div className="mt-2">
+                        <a
+                          href={details.pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm underline text-[rgb(34,128,62)]"
+                        >
+                          Ver PDF
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Datos del servicio */}
+                  <div className="md:col-span-2">
+                    <h4 className="mb-2 text-sm font-semibold text-neutral-700">
+                      Datos del servicio
+                    </h4>
+                    {renderServiceData(
+                      details.serviceData,
+                      details.serviceType
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!detailsLoading && !details && (
+                <p className="text-sm text-red-600">
+                  No se pudieron cargar los detalles.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t p-3">
+              <button
+                onClick={() => setDetailsOpen(false)}
+                className="rounded-lg border border-neutral-200 px-3 py-1.5 text-sm hover:bg-neutral-100"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function Th({ children, className = "" }) {
   return (
-    <th className={`px-3 py-2 text-xs font-medium uppercase tracking-wide ${className}`}>
+    <th
+      className={`px-3 py-2 text-xs font-medium uppercase tracking-wide ${className}`}
+    >
       {children}
     </th>
   );
@@ -651,4 +1166,30 @@ function EstadoBadge({ status }) {
 
 function capitalizar(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function serviceNameForMessage(row) {
+  return row?.servicio || "tu seguro";
+}
+
+function buildWhatsAppMessage({ cliente, servicio }) {
+  const firstName = (cliente || "").split(" ")[0] || "¡Hola!";
+  return `Buen día ${firstName}, te saludamos de MENCAS. Esta es tu cotización para ${servicio}.`;
+}
+
+function buildWhatsAppLink(phone, message) {
+  // Solo dígitos para wa.me (sin '+', espacios, guiones)
+  const number = String(phone || "").replace(/\D/g, "");
+  const text = encodeURIComponent(message);
+  return `https://wa.me/${number}?text=${text}`;
+}
+
+//  GET /adminQuotes/getById
+function extractQuoteFromGetById(json) {
+  if (!json) return null;
+  if (json.quote) return json.quote;
+  if (json.item) return json.item;
+  if (Array.isArray(json.items) && json.items[0]) return json.items[0];
+  if (json.type || json["contact#dni"] || json.contactSnapshot) return json;
+  return null;
 }
