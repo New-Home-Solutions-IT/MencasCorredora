@@ -10,6 +10,10 @@ import {
   IconSend,
   IconCar,
   IconTruck,
+  IconTruckDelivery,
+  IconCarCrane,
+  IconCarSuv,
+  IconCarOff,
   IconBus,
   IconBuildingSkyscraper,
   IconHome,
@@ -224,11 +228,11 @@ export const VEHICULO_MARCAS = [
 
 const VEHICULO_TIPOS = [
   { key: "turismo", label: "Turismo", Icon: IconCar },
-  { key: "camioneta", label: "Camioneta", Icon: IconTruck },
-  { key: "pick-up", label: "Pick-Up", Icon: IconTruck },
+  { key: "camioneta", label: "Camioneta", Icon: IconCarSuv },
+  { key: "pick-up", label: "Pick-Up", Icon: IconCarCrane },
   { key: "microbus", label: "Microbús", Icon: IconBus },
   { key: "camioncito", label: "Camioncito", Icon: IconTruck },
-  { key: "camion", label: "Camión", Icon: IconTruck },
+  { key: "camion", label: "Camión", Icon: IconTruckDelivery },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
