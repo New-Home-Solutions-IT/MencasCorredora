@@ -33,7 +33,7 @@ const Contact = () => {
             Mauricio Mendoza
           </p>
           <p className="text-sm text-neutral-600 mb-4">
-            Gerente de Mencas Corredora de Seguros y Asesor de Seguros.
+            Gerente de Mencas Corredores de Seguros y Asesor de Seguros.
           </p>
 
           {/* Botón WhatsApp */}

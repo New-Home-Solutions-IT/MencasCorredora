@@ -149,7 +149,7 @@ function NavItem({ to, label, Icon, open, onNavigate }) {
       }
     >
       <div className="navbtn relative flex items-center gap-3 rounded-xl px-3 py-2 text-neutral-700 transition-colors hover:bg-neutral-100">
-        <Icon className="h-5 w-5 shrink-0" />
+        {Icon && <Icon className="h-5 w-5 shrink-0" />}
         {open && <span className="truncate text-sm font-medium">{label}</span>}
         {!open && (
           <span className="pointer-events-none absolute left-full ml-2 hidden rounded-md bg-neutral-900 px-2 py-1 text-xs text-white shadow-md group-hover:block">

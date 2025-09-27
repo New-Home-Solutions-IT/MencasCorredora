@@ -132,29 +132,6 @@ function normalizeHeader(s) {
     .trim();
 }
 const REQUIRED_HEADERS_NORM = TEMPLATE_HEADERS.map(normalizeHeader);
-function splitCsvLine(line) {
-  const out = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQ && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQ = !inQ;
-      }
-    } else if (ch === "," && !inQ) {
-      out.push(cur);
-      cur = "";
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out.map((s) => s.trim());
-}
 /* =========================
     Lectura robusta del archivo (UTF-8 con/sin BOM o Latin-1)
 ========================= */
@@ -1155,7 +1132,7 @@ function toIsoDate(input) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
 
   // separador / o -
-  const m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  const m = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
   if (!m) return t;
 
   let a = parseInt(m[1], 10);
