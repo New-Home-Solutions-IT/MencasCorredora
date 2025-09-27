@@ -1190,8 +1190,10 @@ export default function SeguroDetalle() {
   function validateStep2() {
     if (!personal.nombre.trim())
       return toast.error("El nombre es obligatorio.");
-    if (!/^\+?\d[\d\s\-()]{6,}$/.test(personal.telefono.trim()))
-      return toast.error("Teléfono inválido.");
+    const digits = personal.telefono.replace(/\D/g, "");
+    if (!/^\d{8}$/.test(digits)) {
+      return toast.error("Teléfono inválido (deben ser 8 dígitos ej. 32614605).");
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personal.email.trim()))
       return toast.error("Email inválido.");
     if (!personal.dni.trim())
