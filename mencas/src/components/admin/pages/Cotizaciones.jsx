@@ -361,7 +361,7 @@ export default function Cotizaciones() {
         ? "READY"
         : "PENDING";
 
-    // ID 
+    // ID
     const id = typeKey ? `Q-${typeKey.slice(0, 8).toUpperCase()}` : undefined;
 
     return {
@@ -871,16 +871,27 @@ export default function Cotizaciones() {
               >
                 {/* <Td>{row.id}</Td> */}
                 <Td className="font-medium">
-                  <button
-                    onClick={() => openDetails(row)}
-                    className="underline decoration-dotted underline-offset-2 hover:text-[rgb(34,128,62)]"
-                    title="Ver detalles de la cotización"
-                  >
-                    {row.cliente}
-                  </button>
+                  <div className="w-[200px] sm:w-[240px] md:w-[280px] lg:w-[320px] truncate">
+                    <button
+                      onClick={() => openDetails(row)}
+                      title={row.cliente}
+                      className="block w-full text-left underline decoration-dotted underline-offset-2 hover:text-[rgb(34,128,62)]"
+                    >
+                      {row.cliente}
+                    </button>
+                  </div>
                 </Td>
+
                 <Td>{row.telefono}</Td>
-                <Td className="truncate">{row.email}</Td>
+                <Td>
+                  <div
+                    className="w-[220px] md:w-[280px] truncate"
+                    title={row.email}
+                  >
+                    {row.email}
+                  </div>
+                </Td>
+
                 <Td>
                   <MetodoBadge metodo={row.metodo} />
                 </Td>
