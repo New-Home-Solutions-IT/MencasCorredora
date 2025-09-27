@@ -34,7 +34,7 @@ export default function Footer() {
           </Link>
           <p className="text-sm text-gray-600">
             Expertos en seguros personales, médicos, de propiedad y asistencia.
-            Tu tranquilidad es nuestra prioridad.
+            Tu tranquilidad en nuestros servicios.
           </p>
         </div>
 
