@@ -33,6 +33,7 @@ function decodeJwtEmail(idToken) {
   }
 }
 
+
 function fmtDate(s) {
   if (!s) return "—";
   const d = new Date(s);

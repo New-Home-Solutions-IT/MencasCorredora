@@ -8,6 +8,7 @@ import {
   IconChevronRight,
   IconCheck,
 } from "@tabler/icons-react";
+import { toast } from "react-toastify";
 
 const BRAND = "rgb(34,128,62)";
 const METODOS = ["whatsapp", "email", "llamada"];
@@ -189,7 +190,6 @@ export default function Cotizaciones() {
           {Object.entries(m).map(([k, label]) => (
             <Field key={k} label={label} value={sd[k]} />
           ))}
-          {/* Renderiza cualquier otro campo adicional que venga en sd */}
           {Object.keys(sd)
             .filter((k) => !(k in m))
             .map((k) => (
@@ -222,7 +222,6 @@ export default function Cotizaciones() {
       );
     }
 
-    // Fallback genérico para otros servicios
     return (
       <div>
         {Object.entries(sd).map(([k, v]) => (
@@ -246,39 +245,54 @@ export default function Cotizaciones() {
     if (typeof v === "object") return Object.keys(v).length === 0;
     return false;
   }
+  // Renderiza
+ function Value({ value, depth = 0 }) {
+  if (isEmptyValue(value)) return <span>—</span>;
 
-  // Renderiza cualquier valor (string, number, array u objeto anidado)
-  function Value({ value, depth = 0 }) {
-    if (isEmptyValue(value)) return <span>—</span>;
-
-    if (Array.isArray(value)) {
-      return (
-        <span>
-          {value
-            .map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x)))
-            .join(", ")}
-        </span>
-      );
+  // Arrays
+  if (Array.isArray(value)) {
+    // Solo primitivos
+    if (value.every(v => typeof v !== "object")) {
+      return <span>{value.join(", ")}</span>;
     }
-
-    if (typeof value === "object") {
-      return (
-        <div className={depth === 0 ? "space-y-1" : "ml-3 space-y-1"}>
-          {Object.entries(value).map(([k, v]) => (
-            <div key={k} className="grid grid-cols-3 gap-2">
-              <div className="text-xs text-neutral-500">{humanizeKey(k)}</div>
-              <div className="col-span-2 text-sm">
-                <Value value={v} depth={depth + 1} />
-              </div>
-            </div>
-          ))}
-        </div>
-      );
+    // Array de objetos con 'name'
+    if (value.every(v => v && typeof v === "object" && "name" in v)) {
+      return <span>{value.map(v => v.name).join(", ")}</span>;
     }
-
-    // string/number/bool
-    return <span>{String(value)}</span>;
+    // Array de objetos con 'label'
+    if (value.every(v => v && typeof v === "object" && "label" in v)) {
+      return <span>{value.map(v => v.label).join(", ")}</span>;
+    }
+    // Fallback
+    return (
+      <span>
+        {value
+          .map(v => (typeof v === "object" ? JSON.stringify(v) : String(v)))
+          .join(", ")}
+      </span>
+    );
   }
+
+  // Objetos
+  if (value && typeof value === "object") {
+    // Mostrar sólo el nombre cuando exista
+    if (typeof value.name === "string") return <span>{value.name}</span>;
+    if (typeof value.label === "string") return <span>{value.label}</span>;
+    return (
+      <div className={depth === 0 ? "space-y-1" : "ml-3 space-y-1"}>
+        {Object.entries(value).map(([k, v]) => (
+          <div key={k} className="grid grid-cols-3 gap-2">
+            <div className="text-xs text-neutral-500">{humanizeKey(k)}</div>
+            <div className="col-span-2 text-sm">
+              <Value value={v} depth={depth + 1} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <span>{String(value)}</span>;
+}
   //termnina modal de cotizacion aqui
 
   useEffect(() => {
@@ -518,223 +532,211 @@ export default function Cotizaciones() {
   }
 
   async function handleUploadPdf(row, file) {
-    if (!file) return;
-    if (!API_BASE) return alert("No hay API_BASE configurado.");
+  if (!file) return;
+  if (!API_BASE) return toast.error("No hay API_BASE configurado.");
 
-    const dni = row?.dni || "";
-    const typeKey = row?.typeKey || "";
-    const typeFull = row?.typeFull || (typeKey ? `QUOTE#${typeKey}` : "");
+  const dni = row?.dni || "";
+  const typeKey = row?.typeKey || "";
+  const typeFull = row?.typeFull || (typeKey ? `QUOTE#${typeKey}` : "");
 
-    if (!dni || !typeKey || !typeFull) {
-      return alert("Faltan datos para subir PDF (dni/typeKey/typeFull).");
-    }
-
-    try {
-      // Carpeta destino en el bucket
-      const folderPath = `uploads/quote/${dni}`;
-      // Nombre EXACTO del objeto
-      const desiredFileName = `${typeFull}.pdf`;
-
-      // 1) Obtener URL firmada
-      const signedRes = await fetch(`${API_BASE}${S3_SIGNED_URL_PATH}`, {
-        method: "POST",
-        headers: getAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          fileName: desiredFileName,
-          folderPath,
-          fileType: "pdf",
-        }),
-      });
-
-      const signedTxt = await signedRes.text();
-      if (!signedRes.ok) {
-        console.error(
-          "[getSignedUrl] fail:",
-          signedRes.status,
-          signedRes.statusText,
-          signedTxt
-        );
-        return alert("No se pudo obtener URL firmada.");
-      }
-      const signedJson = signedTxt ? JSON.parse(signedTxt) : {};
-      const uploadURL = signedJson?.body?.uploadURL;
-      const fileURL = signedJson?.body?.fileURL; // URL pública
-      const fileKey = buildFileKeyForEdit({ dni, typeFull }); // => uploads/quote/<dni>/QUOTE#...pdf
-
-      if (!uploadURL) {
-        console.error("Respuesta inválida de getSignedUrl:", signedJson);
-        return alert("Respuesta inválida al solicitar URL firmada.");
-      }
-
-      // 2) Subir a S3
-      const putRes = await fetch(uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": "application/pdf" },
-        body: file,
-      });
-      if (!putRes.ok) {
-        const t = await putRes.text().catch(() => "");
-        throw new Error(
-          `PUT a S3 falló (${putRes.status}): ${t.slice(0, 180)}`
-        );
-      }
-
-      // 3) Persistir estado READY con fileKey EXACTO
-      console.log("[Upload PDF] fileKey (KEY en bucket):", fileKey);
-      console.log("[Upload PDF] fileURL (URL para UI):", fileURL);
-
-      await updateQuoteOnServer(
-        { ...row, typeFull },
-        { status: "READY", fileKey }
-      );
-
-      // 4) UI
-      setData((prev) =>
-        prev.map((r) =>
-          r.typeKey === typeKey
-            ? {
-                ...r,
-                pdfFile: file,
-                pdfName: desiredFileName,
-                pdfUrl: fileURL,
-                status: "READY",
-                typeFull,
-              }
-            : r
-        )
-      );
-    } catch (e) {
-      console.error("[Upload PDF] ", e);
-      alert(`Falló la subida de PDF: ${e.message}`);
-    }
+  if (!dni || !typeKey || !typeFull) {
+    return toast.error("Faltan datos para subir PDF (dni/typeKey/typeFull).");
   }
+
+  const reemplazo = Boolean(row.pdfFile || row.pdfUrl || row.status === "READY");
+  const t = toast.loading(reemplazo ? "Reemplazando PDF…" : "Subiendo PDF…");
+
+  try {
+    const folderPath = `uploads/quote/${dni}`;
+    const desiredFileName = `${typeFull}.pdf`;
+
+    // 1) URL firmada
+    const signedRes = await fetch(`${API_BASE}${S3_SIGNED_URL_PATH}`, {
+      method: "POST",
+      headers: getAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        fileName: desiredFileName,
+        folderPath,
+        fileType: "pdf",
+      }),
+    });
+
+    const signedTxt = await signedRes.text();
+    if (!signedRes.ok) {
+      console.error("[getSignedUrl] fail:", signedRes.status, signedRes.statusText, signedTxt);
+      throw new Error("No se pudo obtener URL firmada.");
+    }
+    const signedJson = signedTxt ? JSON.parse(signedTxt) : {};
+    const uploadURL = signedJson?.body?.uploadURL;
+    const fileURL = signedJson?.body?.fileURL;
+    const fileKey = buildFileKeyForEdit({ dni, typeFull }); // uploads/quote/<dni>/QUOTE#...pdf
+
+    if (!uploadURL) {
+      console.error("Respuesta inválida de getSignedUrl:", signedJson);
+      throw new Error("Respuesta inválida al solicitar URL firmada.");
+    }
+
+    // 2) PUT a S3
+    const putRes = await fetch(uploadURL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/pdf" },
+      body: file,
+    });
+    if (!putRes.ok) {
+      const t = await putRes.text().catch(() => "");
+      throw new Error(`PUT a S3 falló (${putRes.status}): ${t.slice(0, 180)}`);
+    }
+
+    // 3) READY con fileKey
+    await updateQuoteOnServer({ ...row, typeFull }, { status: "READY", fileKey });
+
+    // 4) UI
+    setData((prev) =>
+      prev.map((r) =>
+        r.typeKey === typeKey
+          ? {
+              ...r,
+              pdfFile: file,
+              pdfName: desiredFileName,
+              pdfUrl: fileURL,
+              status: "READY",
+              typeFull,
+            }
+          : r
+      )
+    );
+
+    toast.update(t, {
+      render: reemplazo ? "PDF reemplazado correctamente." : "PDF subido correctamente.",
+      type: "success",
+      isLoading: false,
+      autoClose: 2500,
+    });
+  } catch (e) {
+    console.error("[Upload PDF] ", e);
+    toast.update(t, {
+      render: `Falló la subida de PDF: ${e.message}`,
+      type: "error",
+      isLoading: false,
+      autoClose: 4000,
+    });
+  }
+}
 
   // ===== Enviar cotización =====
   async function handleSend(row) {
-    if (!row.pdfFile && !row.pdfUrl) {
-      return alert(
-        `La cotización ${
-          row.id || ""
-        } no tiene PDF cargado. Súbelo antes de enviar.`
-      );
-    }
-    if (!API_BASE) return alert("No hay API_BASE configurado.");
-
-    const dni = row?.dni || "";
-    const typeKey = row?.typeKey || "";
-    const typeFull = row?.typeFull || (typeKey ? `QUOTE#${typeKey}` : "");
-    if (!dni || !typeKey) {
-      return alert("Faltan datos para enviar (type o DNI).");
-    }
-
-    const token = getToken();
-    if (!token)
-      return alert("No hay token de autenticación. Inicia sesión de nuevo.");
-
-    try {
-      // 1) Traer item completo
-      const getUrl = `${API_BASE}${QUOTE_BY_ID_PATH}?type=${encodeURIComponent(
-        typeKey
-      )}&contactDni=${encodeURIComponent(dni)}`;
-
-      const getRes = await fetch(getUrl, {
-        method: "GET",
-        headers: getAuthHeaders(),
-      });
-      const getTxt = await getRes.text();
-      if (!getRes.ok)
-        throw new Error(`getById ${getRes.status}: ${getTxt.slice(0, 500)}`);
-
-      const getJson = getTxt ? JSON.parse(getTxt) : {};
-      const item = extractQuoteFromGetById(getJson);
-      if (!item)
-        throw new Error("No se pudo interpretar la respuesta de getById.");
-
-      // 2) Preparar payload EXACTO
-      const preferUi = (
-        row.metodo ||
-        item?.contactSnapshot?.preferContact ||
-        "email"
-      ).toLowerCase();
-      const prefer = preferUi === "llamada" ? "phone" : preferUi;
-      const contactKey = `CONTACT#${dni}`;
-      // usa la misma función que en /edit
-      const fileKey = buildFileKeyForEdit({ dni, typeFull });
-
-      const payload = {
-        serviceData: item.serviceData || item.details || {},
-        status: item.status || "READY",
-        fileKey, // KEY relativa (no URL)
-        ttl: item.ttl || Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
-        contactSnapshot: {
-          ...(item.contactSnapshot || {}),
-          fullName: row.cliente ?? item?.contactSnapshot?.fullName,
-          cellphone: row.telefono ?? item?.contactSnapshot?.cellphone,
-          preferContact: prefer, // "whatsapp" | "email" | "phone"
-          DNI: dni,
-          email: row.email ?? item?.contactSnapshot?.email,
-        },
-        serviceType: (item.serviceType || item.service || "")
-          .toString()
-          .toUpperCase(),
-        "contact#dni": contactKey,
-        fileUploadedAt: item.fileUploadedAt || new Date().toISOString(),
-        searchKey:
-          item.searchKey || `${row.cliente} | ${row.status} | ${row.servicio}`,
-        searchDate: item.searchDate || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        recordType: "QUOTE",
-        type: typeFull,
-      };
-
-      console.log("[/adminQuotes/send] FINAL PAYLOAD:", payload);
-
-      // 3) POST /adminQuotes/send (sin preferContact/contactDni root ni quoteSnapshot)
-      const sendRes = await fetch(`${API_BASE}${QUOTES_SEND_PATH}`, {
-        method: "POST",
-        headers: getAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(payload),
-      });
-      const sendTxt = await sendRes.text();
-      if (!sendRes.ok) {
-        console.error(
-          "[/adminQuotes/send] status:",
-          sendRes.status,
-          sendRes.statusText,
-          "resp:",
-          sendTxt
-        );
-        throw new Error(`send ${sendRes.status}: ${sendTxt.slice(0, 500)}`);
-      }
-
-      // 4) Acciones UI según método
-      if (prefer === "whatsapp") {
-        const servicioMsg = serviceNameForMessage(row);
-        const msg = buildWhatsAppMessage({
-          cliente: row.cliente,
-          servicio: servicioMsg,
-        });
-        const wa = buildWhatsAppLink(row.telefono, msg);
-        window.open(wa, "_blank", "noopener,noreferrer");
-      } else if (prefer === "phone") {
-        alert(`Debes llamar al cliente: ${row.telefono}`);
-      }
-      // 5) Persistir estado SENT
-      await updateQuoteOnServer({ ...row, typeFull }, { status: "SENT" });
-
-      // 6) UI
-      setData((prev) =>
-        prev.map((r) =>
-          r.typeKey === typeKey ? { ...r, status: "SENT", typeFull } : r
-        )
-      );
-
-      alert("Cotización enviada correctamente.");
-    } catch (e) {
-      console.error("[Enviar] ", e);
-      alert(`No se pudo enviar la cotización: ${e.message}`);
-    }
+  if (!row.pdfFile && !row.pdfUrl) {
+    return toast.error(
+      `La cotización ${row.id || ""} no tiene PDF cargado. Súbelo antes de enviar.`
+    );
   }
+  if (!API_BASE) return toast.error("No hay API_BASE configurado.");
+
+  const dni = row?.dni || "";
+  const typeKey = row?.typeKey || "";
+  const typeFull = row?.typeFull || (typeKey ? `QUOTE#${typeKey}` : "");
+  if (!dni || !typeKey) {
+    return toast.error("Faltan datos para enviar (type o DNI).");
+  }
+
+  const token = getToken();
+  if (!token) return toast.error("No hay token de autenticación. Inicia sesión de nuevo.");
+
+  const t = toast.loading("Enviando cotización…");
+
+  try {
+    // 1) Traer item completo
+    const getUrl = `${API_BASE}${QUOTE_BY_ID_PATH}?type=${encodeURIComponent(
+      typeKey
+    )}&contactDni=${encodeURIComponent(dni)}`;
+
+    const getRes = await fetch(getUrl, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    const getTxt = await getRes.text();
+    if (!getRes.ok)
+      throw new Error(`getById ${getRes.status}: ${getTxt.slice(0, 500)}`);
+
+    const getJson = getTxt ? JSON.parse(getTxt) : {};
+    const item = extractQuoteFromGetById(getJson);
+    if (!item) throw new Error("No se pudo interpretar la respuesta de getById.");
+
+    // 2) Payload /send
+    const preferUi = (
+      row.metodo || item?.contactSnapshot?.preferContact || "email"
+    ).toLowerCase();
+    const prefer = preferUi === "llamada" ? "phone" : preferUi;
+    const contactKey = `CONTACT#${dni}`;
+    const fileKey = buildFileKeyForEdit({ dni, typeFull });
+
+    const payload = {
+      serviceData: item.serviceData || item.details || {},
+      status: item.status || "READY",
+      fileKey,
+      ttl: item.ttl || Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
+      contactSnapshot: buildContactSnapshot(row, item, dni, prefer),
+      serviceType: (item.serviceType || item.service || "").toString().toUpperCase(),
+      "contact#dni": contactKey,
+      fileUploadedAt: item.fileUploadedAt || new Date().toISOString(),
+      searchKey: item.searchKey || `${row.cliente} | ${row.status} | ${row.servicio}`,
+      searchDate: item.searchDate || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      recordType: "QUOTE",
+      type: typeFull,
+    };
+
+    // 3) POST /send
+    const sendRes = await fetch(`${API_BASE}${QUOTES_SEND_PATH}`, {
+      method: "POST",
+      headers: getAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+    const sendTxt = await sendRes.text();
+    if (!sendRes.ok) {
+      console.error("[/adminQuotes/send] status:", sendRes.status, sendRes.statusText, "resp:", sendTxt);
+      throw new Error(`send ${sendRes.status}: ${sendTxt.slice(0, 500)}`);
+    }
+
+    // 4) Acción según preferencia
+    if (prefer === "whatsapp") {
+      const servicioMsg = serviceNameForMessage(row);
+      const msg = buildWhatsAppMessage({
+        cliente: row.cliente,
+        servicio: servicioMsg,
+      });
+      const wa = buildWhatsAppLink(row.telefono, msg);
+      window.open(wa, "_blank", "noopener,noreferrer");
+      toast.info("Abriendo WhatsApp…");
+    } else if (prefer === "phone") {
+      toast.info(`Debes llamar al cliente: ${row.telefono}`);
+    }
+
+    // 5) estado SENT
+    await updateQuoteOnServer({ ...row, typeFull }, { status: "SENT" });
+
+    // 6) UI
+    setData((prev) =>
+      prev.map((r) => (r.typeKey === typeKey ? { ...r, status: "SENT", typeFull } : r))
+    );
+
+    toast.update(t, {
+      render: "Cotización enviada correctamente.",
+      type: "success",
+      isLoading: false,
+      autoClose: 2500,
+    });
+  } catch (e) {
+    console.error("[Enviar] ", e);
+    toast.update(t, {
+      render: `No se pudo enviar la cotización: ${e.message}`,
+      type: "error",
+      isLoading: false,
+      autoClose: 4000,
+    });
+  }
+}
+
 
   return (
     <div className="space-y-4">
