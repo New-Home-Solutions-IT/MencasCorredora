@@ -1409,7 +1409,7 @@ function serviceTypeLabelFromSlug(slug) {
         );
       }
       // const contactData = await contactRes.json().catch(() => ({}));
-      toast.success("Contacto creado con éxito");
+      // toast.success("Contacto creado con éxito");
 
       // 2 COTIZACIÓN
       const quotePayload = {
