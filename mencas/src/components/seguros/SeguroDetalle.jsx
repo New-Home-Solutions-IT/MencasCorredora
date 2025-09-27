@@ -13,12 +13,10 @@ import {
   IconTruckDelivery,
   IconCarCrane,
   IconCarSuv,
-  IconCarOff,
   IconBus,
   IconBuildingSkyscraper,
   IconHome,
   IconBriefcase,
-  IconWorld,
   IconDeviceLaptop,
   IconTractor,
   IconBuilding,
@@ -765,9 +763,7 @@ const ISO2_COUNTRY_CODES = [
 ];
 
 const BASE_URL = (import.meta.env?.VITE_API_URL || "").replace(/\/+$/, "");
-const CONTACTS_URL = BASE_URL
-  ? `${BASE_URL}/contacts/add`
-  : "/contacts/add";
+const CONTACTS_URL = BASE_URL ? `${BASE_URL}/contacts/add` : "/contacts/add";
 const QUOTES_URL = BASE_URL
   ? `${BASE_URL}/createQuotes/add`
   : "/createQuotes/add";
@@ -926,6 +922,14 @@ export default function SeguroDetalle() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
+  //bug de map
+  // ISO2 -> nombre en español (para el resumen de "asistencia")
+  const COUNTRY_MAP = useMemo(() => {
+    const entries = getCountryListEs().map((c) => [c.code, c.name]);
+    return Object.fromEntries(entries);
+  }, []);
+  //fin bug de map
+
   // Paso 1
   const [vehiculo, setVehiculo] = useState({
     marca: "",
@@ -1030,125 +1034,152 @@ export default function SeguroDetalle() {
   function validateStep1() {
     switch (slug) {
       case "vehiculo":
-        if (!vehiculo.marca) return "Selecciona la marca.";
-        if (!vehiculo.modelo) return "Indica el modelo.";
-        if (!vehiculo.tipo) return "Selecciona el tipo de vehículo.";
-        if (!vehiculo.anio) return "Selecciona el año del vehículo.";
-        if (!vehiculo.estado) return "Indica el estado.";
+        if (!vehiculo.marca) return toast.error("Selecciona la marca.");
+        if (!vehiculo.modelo) return toast.error("Indica el modelo.");
+        if (!vehiculo.tipo)
+          return toast.error("Selecciona el tipo de vehículo.");
+        if (!vehiculo.anio)
+          return toast.error("Selecciona el año del vehículo.");
+        if (!vehiculo.estado) return toast.error("Indica el estado.");
         if (vehiculo.valor && Number.isNaN(Number(vehiculo.valor)))
-          return "El valor del vehículo debe ser numérico.";
+          return toast.error("El valor del vehículo debe ser numérico.");
         break;
       case "medico":
         if (!medico.dia || !medico.mes || !medico.anio)
-          return "Completa tu fecha de nacimiento.";
+          return toast.error("Completa tu fecha de nacimiento.");
         if (!isAdultDate(medico.dia, medico.mes, medico.anio))
-          return "Debes ser mayor de 18 años para continuar.";
+          return toast.error("Debes ser mayor de 18 años para continuar.");
 
-        if (!medico.genero) return "Selecciona tu género.";
+        if (!medico.genero) return toast.error("Selecciona tu género.");
         if (!medico.parejaAsegurar)
-          return "Indica si deseas asegurar a tu pareja.";
+          return toast.error("Indica si deseas asegurar a tu pareja.");
 
         if (medico.parejaAsegurar === "Si") {
           if (!medico.parejaDia || !medico.parejaMes || !medico.parejaAnio)
-            return "Completa la fecha de nacimiento de tu pareja.";
+            return toast.error("Completa la fecha de nacimiento de tu pareja.");
           if (
             !isAdultDate(medico.parejaDia, medico.parejaMes, medico.parejaAnio)
           )
-            return "La fecha de nacimiento de tu pareja debe indicar 18 años o más.";
+            return toast.error(
+              "La fecha de nacimiento de tu pareja debe indicar 18 años o más."
+            );
 
-          if (!medico.parejaGenero) return "Selecciona el género de tu pareja.";
-          if (!medico.tieneHijos) return "Indica si tienen hijos.";
+          if (!medico.parejaGenero)
+            return toast.error("Selecciona el género de tu pareja.");
+          if (!medico.tieneHijos) return toast.error("Indica si tienen hijos.");
           if (medico.tieneHijos === "Si" && !medico.hijosCantidad)
-            return "Indica cuántos hijos tienen.";
+            return toast.error("Indica cuántos hijos tienen.");
         }
         break;
       case "propiedad":
-        if (!propiedad.tipo) return "Selecciona el tipo de propiedad.";
+        if (!propiedad.tipo)
+          return toast.error("Selecciona el tipo de propiedad.");
         if (!propiedad.departamento)
-          return "Selecciona el departamento de tu propiedad.";
+          return toast.error("Selecciona el departamento de tu propiedad.");
         if (!propiedad.ciudad.trim())
-          return "Ingresa la ciudad de tu propiedad.";
+          return toast.error("Ingresa la ciudad de tu propiedad.");
         if (!propiedad.direccion.trim())
-          return "Ingresa la dirección exacta de tu propiedad.";
+          return toast.error("Ingresa la dirección exacta de tu propiedad.");
 
         if (!propiedad.material)
-          return "Selecciona el material de construcción.";
+          return toast.error("Selecciona el material de construcción.");
         if (propiedad.material === "Otro" && !propiedad.materialOtro.trim())
-          return "Especifica el material de construcción.";
+          return toast.error("Especifica el material de construcción.");
 
-        if (!propiedad.uso) return "Indica para qué usas tu propiedad.";
+        if (!propiedad.uso)
+          return toast.error("Indica para qué usas tu propiedad.");
 
         if (propiedad.valorPropiedad === "")
-          return "Ingresa el valor de tu propiedad.";
+          return toast.error("Ingresa el valor de tu propiedad.");
         if (
           Number.isNaN(Number(propiedad.valorPropiedad)) ||
           Number(propiedad.valorPropiedad) <= 0
         )
-          return "El valor de tu propiedad debe ser un número mayor a 0.";
+          return toast.error(
+            "El valor de tu propiedad debe ser un número mayor a 0."
+          );
 
         if (propiedad.valorMenaje === "")
-          return "Ingresa el valor de tu menaje.";
+          return toast.error("Ingresa el valor de tu menaje.");
         if (
           Number.isNaN(Number(propiedad.valorMenaje)) ||
           Number(propiedad.valorMenaje) < 0
         )
-          return "El valor de tu menaje debe ser un número (0 o mayor).";
+          return toast.error(
+            "El valor de tu menaje debe ser un número (0 o mayor)."
+          );
         break;
       case "viaje": {
         const hasMulti =
           Array.isArray(viaje.destinos) && viaje.destinos.length > 0;
         const hasLegacy = (viaje.destino || "").trim().length > 0;
         if (!hasMulti && !hasLegacy)
-          return "Indica al menos un destino de viaje.";
+          return toast.error("Indica al menos un destino de viaje.");
 
         if (viaje.salida && isNaN(Date.parse(viaje.salida)))
-          return "Fecha de salida inválida.";
+          return toast.error("Fecha de salida inválida.");
         if (viaje.regreso && isNaN(Date.parse(viaje.regreso)))
-          return "Fecha de regreso inválida.";
+          return toast.error("Fecha de regreso inválida.");
         if (
           viaje.salida &&
           viaje.regreso &&
           new Date(viaje.regreso) < new Date(viaje.salida)
         )
-          return "La fecha de regreso debe ser posterior a la salida.";
+          return toast.error(
+            "La fecha de regreso debe ser posterior a la salida."
+          );
 
         if (viaje.personas < 1 || viaje.personas > 6)
-          return "El número de personas viajeras debe estar entre 1 y 6.";
+          return toast.error(
+            "El número de personas viajeras debe estar entre 1 y 6."
+          );
         break;
       }
       case "asistencia": {
         if (!asistencia.nombre.trim())
-          return "Ingresa el nombre completo del hondureño migrante.";
-        if (!asistencia.pais) return "Selecciona el país de residencia.";
+          return toast.error(
+            "Ingresa el nombre completo del hondureño migrante."
+          );
+        if (!asistencia.pais)
+          return toast.error("Selecciona el país de residencia.");
         if (!asistencia.identificacion.trim())
-          return "Ingresa el número de identificación.";
-        if (!asistencia.direccion.trim()) return "Ingresa la dirección.";
+          return toast.error("Ingresa el número de identificación.");
+        if (!asistencia.direccion.trim())
+          return toast.error("Ingresa la dirección.");
         if (!/^\d{8,}$/.test(asistencia.telefono.trim()))
-          return "Teléfono del migrante inválido (solo números, mínimo 8).";
-        if (!asistencia.ocupacion.trim()) return "Ingresa la ocupación.";
+          return toast.error(
+            "Teléfono del migrante inválido (solo números, mínimo 8)."
+          );
+        if (!asistencia.ocupacion.trim())
+          return toast.error("Ingresa la ocupación.");
         if (!asistencia.contactoHonduras.trim())
-          return "Ingresa un contacto en Honduras.";
+          return toast.error("Ingresa un contacto en Honduras.");
         break;
       }
       case "vida":
         if (!vida.dia || !vida.mes || !vida.anio)
-          return "Completa tu fecha de nacimiento.";
+          return toast.error("Completa tu fecha de nacimiento.");
         if (!isAdultDate(vida.dia, vida.mes, vida.anio))
-          return "Debes ser mayor de 18 años para contratar este seguro.";
+          return toast.error(
+            "Debes ser mayor de 18 años para contratar este seguro."
+          );
 
-        if (!vida.genero) return "Selecciona tu género.";
+        if (!vida.genero) return toast.error("Selecciona tu género.");
 
         if (vida.valorAsegurar === "")
-          return "Indica la suma que te gustaría asegurar.";
+          return toast.error("Indica la suma que te gustaría asegurar.");
         if (
           Number.isNaN(Number(vida.valorAsegurar)) ||
           Number(vida.valorAsegurar) <= 0
         )
-          return "La suma a asegurar debe ser un número mayor a 0.";
+          return toast.error(
+            "La suma a asegurar debe ser un número mayor a 0."
+          );
 
-        if (!vida.profesion) return "Selecciona tu ocupación/profesión.";
+        if (!vida.profesion)
+          return toast.error("Selecciona tu ocupación/profesión.");
         if (vida.profesion === "Otro" && !vida.profesionOtro.trim())
-          return "Especifica tu ocupación/profesión.";
+          return toast.error("Especifica tu ocupación/profesión.");
         break;
 
       default:
@@ -1157,28 +1188,40 @@ export default function SeguroDetalle() {
     return null;
   }
   function validateStep2() {
-    if (!personal.nombre.trim()) return "El nombre es obligatorio.";
+    if (!personal.nombre.trim())
+      return toast.error("El nombre es obligatorio.");
     if (!/^\+?\d[\d\s\-()]{6,}$/.test(personal.telefono.trim()))
-      return "Teléfono inválido.";
+      return toast.error("Teléfono inválido.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personal.email.trim()))
-      return "Email inválido.";
-    if (!personal.dni.trim()) return "El DNI/identidad es obligatorio.";
+      return toast.error("Email inválido.");
+    if (!personal.dni.trim())
+      return toast.error("El DNI/identidad es obligatorio.");
 
     const necesitaDOB = slug !== "medico" && slug !== "vida";
     if (necesitaDOB && !personal.birthDate)
-      return "La fecha de nacimiento es obligatoria.";
+      return toast.error("La fecha de nacimiento es obligatoria.");
     if (personal.birthDate && isNaN(Date.parse(personal.birthDate)))
-      return "La fecha de nacimiento no es válida (usa YYYY-MM-DD).";
+      return toast.error(
+        "La fecha de nacimiento no es válida (usa YYYY-MM-DD)."
+      );
 
     return null;
   }
 
-  function next() {
-    const err =
-      step === 1 ? validateStep1() : step === 2 ? validateStep2() : null;
-    if (err) return alert(err);
+  // function next() {
+  //   const err =
+  //     step === 1 ? validateStep1() : step === 2 ? validateStep2() : null;
+  //   if (err) return alert(err);
+  //   setStep((s) => Math.min(3, s + 1));
+  // }
+  function next(e) {
+    e?.preventDefault?.();
+    const hasError =
+      step === 1 ? !!validateStep1() : step === 2 ? !!validateStep2() : false;
+    if (hasError) return;
     setStep((s) => Math.min(3, s + 1));
   }
+
   function back() {
     setStep((s) => Math.max(1, s - 1));
   }
@@ -1206,31 +1249,44 @@ export default function SeguroDetalle() {
     return dob <= adultCutoff;
   }
 
- // Servicios 
-function serviceTypeCodeFromSlug(slug) {
-  switch (slug) {
-    case "vehiculo":   return "AUTO";
-    case "medico":     return "MEDICAL";
-    case "propiedad":  return "PROPERTY";
-    case "viaje":      return "TRAVEL";
-    case "asistencia": return "ASSIST";
-    case "vida":       return "LIFE";
-    default:           return "OTHER";
+  // Servicios
+  function serviceTypeCodeFromSlug(slug) {
+    switch (slug) {
+      case "vehiculo":
+        return "AUTO";
+      case "medico":
+        return "MEDICAL";
+      case "propiedad":
+        return "PROPERTY";
+      case "viaje":
+        return "TRAVEL";
+      case "asistencia":
+        return "ASSIST";
+      case "vida":
+        return "LIFE";
+      default:
+        return "OTHER";
+    }
   }
-}
 
-function serviceTypeLabelFromSlug(slug) {
-  switch (slug) {
-    case "vehiculo":   return "Seguro de Vehículo";
-    case "medico":     return "Seguro Médico";
-    case "propiedad":  return "Seguro de Propiedad";
-    case "viaje":      return "Seguro de Viaje";
-    case "asistencia": return "Repatriación y Asistencia";
-    case "vida":       return "Seguro de Vida";
-    default:           return "Otro";
+  function serviceTypeLabelFromSlug(slug) {
+    switch (slug) {
+      case "vehiculo":
+        return "Seguro de Vehículo";
+      case "medico":
+        return "Seguro Médico";
+      case "propiedad":
+        return "Seguro de Propiedad";
+      case "viaje":
+        return "Seguro de Viaje";
+      case "asistencia":
+        return "Repatriación y Asistencia";
+      case "vida":
+        return "Seguro de Vida";
+      default:
+        return "Otro";
+    }
   }
-}
-
 
   // Normaliza numéricos
   const numOrNull = (v) => {
@@ -1742,7 +1798,11 @@ function serviceTypeLabelFromSlug(slug) {
                   />
                   <ReadOnly
                     label="País de residencia"
-                    value={COUNTRY_MAP[asistencia.pais] || asistencia.pais}
+                    value={
+                      COUNTRY_MAP[(asistencia.pais || "").toUpperCase()] ||
+                      asistencia.pais ||
+                      "—"
+                    }
                   />
                   <ReadOnly
                     label="Identificación"
@@ -2656,7 +2716,10 @@ function Stepper({ step }) {
           const current = step === it.n;
 
           return (
-            <div key={it.n} className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div
+              key={it.n}
+              className="flex items-center gap-2 sm:gap-3 shrink-0"
+            >
               {/* círculo */}
               <span
                 className={[
@@ -2698,7 +2761,6 @@ function Stepper({ step }) {
     </div>
   );
 }
-
 
 function Field({ label, value, onChange, placeholder, type = "text" }) {
   return (
