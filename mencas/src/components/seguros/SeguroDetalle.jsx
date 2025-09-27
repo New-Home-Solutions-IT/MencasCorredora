@@ -922,6 +922,17 @@ export default function SeguroDetalle() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
+  // scroll to top
+  const scrollToId = React.useCallback((id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  React.useEffect(() => {
+    const el = document.getElementById("wizard");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [step]);
+
   //bug de map
   // ISO2 -> nombre en español (para el resumen de "asistencia")
   const COUNTRY_MAP = useMemo(() => {
@@ -1192,13 +1203,18 @@ export default function SeguroDetalle() {
       return toast.error("El nombre es obligatorio.");
     const digits = personal.telefono.replace(/\D/g, "");
     if (!/^\d{8}$/.test(digits)) {
-      return toast.error("Teléfono inválido (deben ser 8 dígitos ej. 32614605).");
+      return toast.error(
+        "Teléfono inválido (deben ser 8 dígitos ej. 32614605)."
+      );
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personal.email.trim()))
       return toast.error("Email inválido.");
-    if (!personal.dni.trim())
-      return toast.error("El DNI/identidad es obligatorio.");
-
+    const id = personal.dni.replace(/\D+/g, "");
+    if (!/^\d{13}$/.test(id)) {
+      return toast.error(
+        "El DNI/identidad es obligatorio, ej. 0703199000000)."
+      );
+    }
     const necesitaDOB = slug !== "medico" && slug !== "vida";
     if (necesitaDOB && !personal.birthDate)
       return toast.error("La fecha de nacimiento es obligatoria.");
@@ -1209,24 +1225,29 @@ export default function SeguroDetalle() {
 
     return null;
   }
-
-  // function next() {
-  //   const err =
-  //     step === 1 ? validateStep1() : step === 2 ? validateStep2() : null;
-  //   if (err) return alert(err);
-  //   setStep((s) => Math.min(3, s + 1));
-  // }
   function next(e) {
     e?.preventDefault?.();
     const hasError =
       step === 1 ? !!validateStep1() : step === 2 ? !!validateStep2() : false;
     if (hasError) return;
-    setStep((s) => Math.min(3, s + 1));
+
+    setStep((s) => {
+      const nextStep = Math.min(3, s + 1);
+      if (nextStep === 2) requestAnimationFrame(() => scrollToId("wizard"));
+      return nextStep;
+    });
+  }
+  function back() {
+    setStep((s) => {
+      const prev = Math.max(1, s - 1);
+      requestAnimationFrame(() => {
+        const el = document.getElementById("wizard");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return prev;
+    });
   }
 
-  function back() {
-    setStep((s) => Math.max(1, s - 1));
-  }
   // Valida que (d/m/y) sea una fecha real y que sea 18+ años
   function isAdultDate(d, m, y) {
     const dd = Number(d),
@@ -1524,7 +1545,10 @@ export default function SeguroDetalle() {
 
   return (
     <div className="w-full bg-white">
-      <section className="overflow-hidden relative h-[60vh] min-h-[420px] bg-gradient-to-r from-emerald-700 to-emerald-500 text-white flex items-center pt-20">
+      <section
+        id="wizard"
+        className="scroll-mt-24 overflow-hidden relative h-[60vh] min-h-[420px] bg-gradient-to-r from-emerald-700 to-emerald-500 text-white flex items-center pt-20"
+      >
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between p-10">
           {/* Texto */}
           <div className="max-w-xl">
@@ -1617,6 +1641,7 @@ export default function SeguroDetalle() {
                 value={personal.telefono}
                 onChange={(v) => setPersonal((p) => ({ ...p, telefono: v }))}
                 placeholder="+504 9xxx-xxxx"
+                maxLength={8}
               />
               <Field
                 label="Email *"
@@ -1629,6 +1654,7 @@ export default function SeguroDetalle() {
                 value={personal.dni}
                 onChange={(v) => setPersonal((p) => ({ ...p, dni: v }))}
                 placeholder="0801xxxxxxxx"
+                maxLength={13}
               />
 
               {/* DOB: si es vida/medico, se muestra readonly; si no, input date */}
