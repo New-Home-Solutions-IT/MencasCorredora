@@ -2,6 +2,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 import aboutHero from "../assets/historiaMencas.png";
+import logo from "../assets/logoheroMencas.png";
+import { FaWhatsapp } from "react-icons/fa";
 
 const timelineData = [
   {
@@ -118,15 +120,14 @@ export default function About() {
           >
             <h3 className="text-2xl font-bold text-green-700 mb-4">Misión</h3>
             <p className="text-gray-700 text-justify">
-              Desde 1991, en Mencas Corredores nos hemos consolidado como
-              una empresa comprometida con el bienestar de nuestros clientes,
-              ya sean personas, familias o empresas. Ofrecemos asesoría integral
-              en el ámbito de seguros, brindando soluciones personalizadas y
+              Desde 1991, en Mencas Corredores nos hemos consolidado como una
+              empresa comprometida con el bienestar de nuestros clientes, ya
+              sean personas, familias o empresas. Ofrecemos asesoría integral en
+              el ámbito de seguros, brindando soluciones personalizadas y
               respaldo en todo momento. En el sector de bienes raíces,
-              proporcionamos asesoría especializada y oportunidades de
-              inversión rentables, promoviendo una rápida plusvalía y
-              contribuyendo al desarrollo económico y social de la Zona Oriental
-              del país.
+              proporcionamos asesoría especializada y oportunidades de inversión
+              rentables, promoviendo una rápida plusvalía y contribuyendo al
+              desarrollo económico y social de la Zona Oriental del país.
             </p>
           </motion.div>
 
@@ -140,19 +141,69 @@ export default function About() {
             <p className="text-gray-700 text-justify">
               Ser la opción líder y preferida en asesoría de seguros y bienes
               raíces en la Zona Oriental del país. Con más de 30 años de
-              experiencia en el rubro de seguros y en el sector inmobiliario, y con
-              el respaldo de la tecnología actual, buscamos trasladar nuestros
-              servicios al entorno digital sin perder la calidez y el enfoque
-              personalizado que nos caracteriza. Nuestro objetivo es
+              experiencia en el rubro de seguros y en el sector inmobiliario, y
+              con el respaldo de la tecnología actual, buscamos trasladar
+              nuestros servicios al entorno digital sin perder la calidez y el
+              enfoque personalizado que nos caracteriza. Nuestro objetivo es
               proporcionar bienestar y tranquilidad a nuestros clientes de
               manera continua, adaptándonos a sus necesidades en un mundo en
               constante evolución, para llegar a más empresas, familias e
-              instituciones, protegiendo lo que más valoran mediante el análisis y
-              la gestión profesional de los riesgos que enfrentan, tanto a nivel
-              personal como corporativo.
+              instituciones, protegiendo lo que más valoran mediante el análisis
+              y la gestión profesional de los riesgos que enfrentan, tanto a
+              nivel personal como corporativo.
             </p>
           </motion.div>
         </div>
+      </div>
+      {/* (WhatsApp + Volver arriba) */}
+      <div className="fixed right-6 bottom-2 sm:right-7 sm:bottom-7 md:right-8 md:bottom-8 z-40 flex flex-col items-end gap-3">
+        {/* WhatsApp */}
+        <a
+          href="https://wa.me/50432614605?text=Hola%20MencasCorredores,%20quiero%20informaci%C3%B3n%20acerca%20de%20:"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group"
+          aria-label="Chatea por WhatsApp"
+          title="Abrir WhatsApp"
+        >
+          {/* Tooltip a la izquierda y centrado */}
+          <div className="pointer-events-none absolute top-1/2 right-full mr-3 -translate-y-1/2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition duration-200">
+            <div className="bg-green-600 text-white text-xs px-2.5 py-1 rounded-md shadow-lg whitespace-nowrap relative">
+              Escríbenos por WhatsApp
+              <span className="absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-2 bg-green-600 rotate-45"></span>
+            </div>
+          </div>
+
+          {/* Botón */}
+          <div className="w-14 h-14 flex items-center justify-center rounded-full bg-green-500 text-white shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5">
+            <FaWhatsapp className="w-8 h-8" />
+          </div>
+        </a>
+
+        {/* Volver arriba */}
+        <a
+          href="#nosotros"
+          className="group"
+          aria-label="Ir al inicio Mencas"
+          title="Ir al inicio"
+        >
+          {/* Tooltip a la izquierda */}
+          <div className="pointer-events-none absolute top-1/2 right-full mr-3 -translate-y-1/2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition duration-200">
+            <div className="bg-gray-900 text-white text-xs px-2.5 py-1 rounded-md shadow-lg whitespace-nowrap relative">
+              Volver arriba • Inicio
+              <span className="absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-2 bg-gray-900 rotate-45"></span>
+            </div>
+          </div>
+
+          {/* Botón */}
+          <div className="w-14 h-14 flex items-center justify-center rounded-full bg-white/90 backdrop-blur border border-gray-200 shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5">
+            <img
+              src={logo}
+              alt="Logo Mencas"
+              className="w-8 h-8 object-contain"
+            />
+          </div>
+        </a>
       </div>
     </section>
   );

@@ -53,6 +53,8 @@ import audi from "../../assets/marcas/audi.png";
 import bmw from "../../assets/marcas/bmw.png";
 import mercedes from "../../assets/marcas/mercedes.png";
 import { toast } from "react-toastify";
+import logo from "../../assets/logoheroMencas.png";
+import { FaWhatsapp } from "react-icons/fa";
 
 const BRAND = "rgb(34,128,62)";
 
@@ -1941,6 +1943,56 @@ export default function SeguroDetalle() {
           </div>
         </div>
       </section>
+      {/* === Botones flotantes (WhatsApp + Volver arriba) === */}
+      <div className="fixed right-6 bottom-4 sm:right-7 sm:bottom-7 md:right-8 md:bottom-8 z-[60] flex flex-col items-end gap-3">
+        {/* WhatsApp */}
+        <a
+          href="https://wa.me/50432614605?text=Hola%20MencasCorredores,%20quiero%20informaci%C3%B3n%20acerca%20de%20:"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative"
+          aria-label="Chatea por WhatsApp"
+          title="Abrir WhatsApp"
+        >
+          {/* Tooltip a la izquierda */}
+          <div className="pointer-events-none absolute top-1/2 right-full mr-3 -translate-y-1/2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition duration-200">
+            <div className="bg-green-600 text-white text-xs px-2.5 py-1 rounded-md shadow-lg whitespace-nowrap relative">
+              Escríbenos por WhatsApp
+              <span className="absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-2 bg-green-600 rotate-45"></span>
+            </div>
+          </div>
+
+          {/* Botón redondo */}
+          <div className="w-14 h-14 flex items-center justify-center rounded-full bg-green-500 text-white shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5">
+            <FaWhatsapp className="w-8 h-8" />
+          </div>
+        </a>
+
+        {/* Volver arriba */}
+        <a
+          href="#wizard"
+          className="group relative"
+          aria-label="Ir al inicio Mencas"
+          title="Ir al inicio"
+        >
+          {/* Tooltip a la izquierda */}
+          <div className="pointer-events-none absolute top-1/2 right-full mr-3 -translate-y-1/2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition duration-200">
+            <div className="bg-gray-900 text-white text-xs px-2.5 py-1 rounded-md shadow-lg whitespace-nowrap relative">
+              Volver arriba • Inicio
+              <span className="absolute top-1/2 -translate-y-1/2 -right-1 w-2 h-2 bg-gray-900 rotate-45"></span>
+            </div>
+          </div>
+
+          {/* Botón redondo */}
+          <div className="w-14 h-14 flex items-center justify-center rounded-full bg-white/90 backdrop-blur border border-gray-200 shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5">
+            <img
+              src={logo}
+              alt="Logo Mencas"
+              className="w-8 h-8 object-contain"
+            />
+          </div>
+        </a>
+      </div>
     </div>
   );
 }
