@@ -65,7 +65,12 @@ export default function Navbar() {
           </NavLink>
 
           <button
-            onClick={() => goToSection("cotizame")}
+             onClick={() =>
+                window.open(
+                  "https://wa.me/50432614605?text=Hola%20MencasCorredores,%20quiero%20cotizar%20acerca%20de:",
+                  "_blank"
+                )
+              }
             className="inline-flex items-center align-middle h-10 leading-none bg-[rgb(34,128,62)] hover:bg-[rgb(30,110,55)] text-white px-6 rounded-md shadow-md transition hover:scale-105"
           >
             Cotízame
@@ -128,10 +133,26 @@ export default function Navbar() {
             </button>
 
             <button
-              onClick={() => goToSection("cotizame")}
+                onClick={() =>
+                window.open(
+                  "https://wa.me/50432614605?text=Hola%20MencasCorredores,%20quiero%20cotizar%20acerca%20de:",
+                  "_blank"
+                )
+              }
               className="inline-flex items-center h-10 bg-[rgb(34,128,62)] hover:bg-[rgb(30,110,55)] text-white px-6 rounded-md shadow-md transition hover:scale-105 justify-center"
             >
               Cotízame
+            </button>
+            <button
+              onClick={() =>
+                window.open(
+                  "https://wa.me/50432614605?text=Hola%20MencasCorredores,%20quiero%20informaci%C3%B3n%20acerca%20de%20Bienes%20Ra%C3%ADces",
+                  "_blank"
+                )
+              }
+              className="inline-flex items-center align-middle h-10 bg-[rgb(34,128,62)] hover:bg-[rgb(30,110,55)] text-white px-6 rounded-md shadow-md transition hover:scale-105 justify-center"
+            >
+              Bienes Raíces
             </button>
           </nav>
         </div>
