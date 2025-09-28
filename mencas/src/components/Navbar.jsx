@@ -9,7 +9,7 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   const toggleMenu = () => setMenuOpen((v) => !v);
-  const closeMenu  = () => setMenuOpen(false);
+  const closeMenu = () => setMenuOpen(false);
 
   // alinear verticalmente TODOS los items del menú
   const linkBase =
@@ -38,7 +38,9 @@ export default function Navbar() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
           <img src={logo} alt="Mencas Logo" className="h-10 w-auto" />
-          <span className="font-bold text-lg text-green-700">MENCAS CORREDORES</span>
+          <span className="font-bold text-lg text-green-700">
+            MENCAS CORREDORES
+          </span>
         </Link>
 
         {/* Menú desktop */}
@@ -54,7 +56,9 @@ export default function Navbar() {
             to="/nosotros"
             onClick={closeMenu}
             className={({ isActive }) =>
-              `${linkBase} ${isActive ? "text-green-700 font-semibold" : "text-gray-800"}`
+              `${linkBase} ${
+                isActive ? "text-green-700 font-semibold" : "text-gray-800"
+              }`
             }
           >
             Nosotros
@@ -70,10 +74,25 @@ export default function Navbar() {
           <button onClick={() => goToSection("contact")} className={linkBase}>
             Contacto
           </button>
+          <button
+            onClick={() =>
+              window.open(
+                "https://wa.me/50432614605?text=Hola%20MencasCorredores,%20quiero%20informaci%C3%B3n%20acerca%20de%20Bienes%20Ra%C3%ADces",
+                "_blank"
+              )
+            }
+            className="inline-flex items-center align-middle h-10 leading-none bg-[rgb(34,128,62)] hover:bg-[rgb(30,110,55)] text-white px-6 rounded-md shadow-md transition hover:scale-105"
+          >
+            Bienes Raíces
+          </button>
         </nav>
 
         {/* Hamburguesa */}
-        <button className="md:hidden text-gray-800" onClick={toggleMenu} aria-label="Abrir menú">
+        <button
+          className="md:hidden text-gray-800"
+          onClick={toggleMenu}
+          aria-label="Abrir menú"
+        >
           {menuOpen ? <X size={28} /> : <Menu size={28} />}
         </button>
       </div>
@@ -82,20 +101,31 @@ export default function Navbar() {
       {menuOpen && (
         <div className="md:hidden bg-white border-t shadow-lg">
           <nav className="flex flex-col px-6 py-4 gap-4 text-gray-800 font-medium">
-            <button onClick={() => goToSection("inicio")} className={linkBase}>Inicio</button>
-            <button onClick={() => goToSection("servicios")} className={linkBase}>Servicios</button>
+            <button onClick={() => goToSection("inicio")} className={linkBase}>
+              Inicio
+            </button>
+            <button
+              onClick={() => goToSection("servicios")}
+              className={linkBase}
+            >
+              Servicios
+            </button>
 
             <NavLink
               to="/nosotros"
               onClick={closeMenu}
               className={({ isActive }) =>
-                `${linkBase} ${isActive ? "text-green-700 font-semibold" : "text-gray-800"}`
+                `${linkBase} ${
+                  isActive ? "text-green-700 font-semibold" : "text-gray-800"
+                }`
               }
             >
               Nosotros
             </NavLink>
 
-            <button onClick={() => goToSection("contact")} className={linkBase}>Contacto</button>
+            <button onClick={() => goToSection("contact")} className={linkBase}>
+              Contacto
+            </button>
 
             <button
               onClick={() => goToSection("cotizame")}
